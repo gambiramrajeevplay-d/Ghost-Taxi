@@ -547,4 +547,24 @@ public class VampireTeleportEffect : MonoBehaviour
         if (playerCar != null)
             playerCar.canControl = true;
     }
+    public void DeactivateVampireEffect()
+    {
+        effectActive = false;
+        isTeleporting = false;
+        isGrowing = false;
+
+        StopAllCoroutines();
+
+        teleportLoopRoutine = null;
+        growRoutine = null;
+
+        ResetVisual();
+
+        if (playerCar != null)
+            playerCar.canControl = true;
+
+        history.Clear();
+        TimeUntilNextTeleport = 0f;
+
+    }
 }

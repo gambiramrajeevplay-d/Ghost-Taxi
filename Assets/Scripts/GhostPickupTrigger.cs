@@ -13,12 +13,13 @@ public class GhostPickupTrigger : MonoBehaviour
 
     [Header("Passenger")]
     [SerializeField] private PassengerType passengerType;
+    [Tooltip("Optional. If empty, the closest matching passenger in the scene (even inactive) is used.")]
     [SerializeField] private GameObject passenger;
 
     [Header("Player")]
     [SerializeField] private bool stopPlayerDuringPickup = true;
 
-    [Header("Behaviour Scripts")]
+    [Header("Behaviour Scripts (optional, auto-found on the player car)")]
     [SerializeField] private GhostCarEffect ghostEffect;
     [SerializeField] private WitchCarEffect witchEffect;
     [SerializeField] private VampireTeleportEffect vampireEffect;
@@ -33,9 +34,7 @@ public class GhostPickupTrigger : MonoBehaviour
         if (pickupStarted)
             return;
 
-        RCC_CarControllerV3 car =
-            other.GetComponentInParent<RCC_CarControllerV3>();
-
+        RCC_CarControllerV3 car = other.GetComponentInParent<RCC_CarControllerV3>();
         if (car == null)
             return;
 
@@ -52,8 +51,129 @@ public class GhostPickupTrigger : MonoBehaviour
             playerRigidbody.angularVelocity = Vector3.zero;
         }
 
+        ResolveReferences();
         StartPickup();
     }
+
+    // ---------------------------------------------------------------
+    // Reference lookup (player is spawned at runtime)
+    // ---------------------------------------------------------------
+
+    private void ResolveReferences()
+    {
+        switch (passengerType)
+        {
+            case PassengerType.Ghost:
+                ghostEffect = FindEffect(ghostEffect);
+                if (passenger == null)
+                    passenger = FindClosestPassenger<GhostMovement>();
+                break;
+
+            case PassengerType.Witch:
+                witchEffect = FindEffect(witchEffect);
+                if (passenger == null)
+                    passenger = FindClosestPassenger<WitchMovement>();
+                break;
+
+            case PassengerType.Vampire:
+                vampireEffect = FindEffect(vampireEffect);
+                if (passenger == null)
+                    passenger = FindClosestPassenger<WitchMovement>();
+                break;
+
+            case PassengerType.Skeleton:
+                skeletonEffect = FindEffect(skeletonEffect);
+                if (passenger == null)
+                    passenger = FindClosestPassenger<WitchMovement>();
+                break;
+
+            case PassengerType.Zombie:
+                if (passenger == null)
+                    passenger = FindClosestPassenger<WitchMovement>();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Finds an effect: player car children (inactive included) -> player car parents
+    /// -> Inspector reference -> anywhere in the scene (inactive included).
+    /// Then makes sure it is active and enabled so coroutines can run.
+    /// </summary>
+    private T FindEffect<T>(T assigned) where T : MonoBehaviour
+    {
+        T found = null;
+
+        if (playerCar != null)
+        {
+            found = playerCar.GetComponentInChildren<T>(true);
+
+            if (found == null)
+                found = playerCar.GetComponentInParent<T>(true);
+        }
+
+        if (found == null && assigned != null)
+            found = assigned;
+
+        if (found == null)
+            found = FindObjectOfType<T>(true);
+
+        if (found != null)
+            EnsureActive(found);
+
+        return found;
+    }
+
+    private void EnsureActive(MonoBehaviour behaviour)
+    {
+        // Activate the object and any inactive parents (up to the car root).
+        Transform t = behaviour.transform;
+        Transform stopAt = playerCar != null ? playerCar.transform.parent : null;
+
+        while (t != null && t != stopAt)
+        {
+            if (!t.gameObject.activeSelf)
+                t.gameObject.SetActive(true);
+
+            t = t.parent;
+        }
+
+        if (!behaviour.enabled)
+            behaviour.enabled = true;
+    }
+
+    /// <summary>Closest passenger of type T in the scene, inactive objects included.</summary>
+    private GameObject FindClosestPassenger<T>() where T : MonoBehaviour
+    {
+        T[] all = FindObjectsOfType<T>(true);
+        GameObject best = null;
+        float bestDistance = float.MaxValue;
+
+        foreach (T candidate in all)
+        {
+            if (candidate == null)
+                continue;
+
+            // Skip clones that live on the player (e.g. orbiting ghosts).
+            if (playerCar != null && candidate.transform.IsChildOf(playerCar.transform))
+                continue;
+
+            float d = (candidate.transform.position - transform.position).sqrMagnitude;
+            if (d < bestDistance)
+            {
+                bestDistance = d;
+                best = candidate.gameObject;
+            }
+        }
+
+        if (best == null)
+            Debug.LogWarning("GhostPickupTrigger: No " + typeof(T).Name + " found in the scene.", this);
+
+        return best;
+    }
+
+    // ---------------------------------------------------------------
+    // Pickup flow
+    // ---------------------------------------------------------------
 
     private void StartPickup()
     {
@@ -64,24 +184,14 @@ public class GhostPickupTrigger : MonoBehaviour
                 break;
 
             case PassengerType.Witch:
-                StartWalkingPassengerPickup();
-                break;
-
             case PassengerType.Vampire:
-                StartWalkingPassengerPickup();
-                break;
-
             case PassengerType.Zombie:
-                StartWalkingPassengerPickup();
-                break;
-
             case PassengerType.Skeleton:
                 StartWalkingPassengerPickup();
                 break;
         }
     }
 
-    // Ghost keeps its existing movement behavior.
     private void StartGhostPickup()
     {
         if (passenger == null)
@@ -90,15 +200,9 @@ public class GhostPickupTrigger : MonoBehaviour
             return;
         }
 
-        if (ghostEffect == null && playerCar != null)
-        {
-            ghostEffect =
-                playerCar.GetComponentInChildren<GhostCarEffect>();
-        }
+        passenger.SetActive(true);
 
-        GhostMovement movement =
-            passenger.GetComponent<GhostMovement>();
-
+        GhostMovement movement = passenger.GetComponent<GhostMovement>();
         if (movement == null)
         {
             HidePassenger();
@@ -106,54 +210,37 @@ public class GhostPickupTrigger : MonoBehaviour
             return;
         }
 
-        movement.StartMovingToCar(
-            playerCar.transform,
-            FinishGhostPickup
-        );
+        movement.StartMovingToCar(playerCar.transform, FinishGhostPickup);
     }
 
-    // Shared by Witch, Vampire, Zombie and Skeleton.
     private void StartWalkingPassengerPickup()
     {
         if (passenger == null)
         {
-            Debug.LogWarning(
-                "GhostPickupTrigger: Passenger is not assigned.",
-                this
-            );
-
+            Debug.LogWarning("GhostPickupTrigger: Passenger is not assigned or found.", this);
+            ActivatePassengerEffect();
             EnablePlayerControl();
             return;
         }
 
         passenger.SetActive(true);
 
-        WitchMovement movement =
-            passenger.GetComponent<WitchMovement>();
-
+        WitchMovement movement = passenger.GetComponent<WitchMovement>();
         if (movement == null)
         {
-            Debug.LogWarning(
-                passenger.name +
-                " needs the WitchMovement component.",
-                passenger
-            );
-
+            Debug.LogWarning(passenger.name + " needs the WitchMovement component.", passenger);
             HidePassenger();
             ActivatePassengerEffect();
             EnablePlayerControl();
             return;
         }
 
-        movement.StartWalkingToCar(
-            playerCar.transform,
-            () =>
-            {
-                HidePassenger();
-                ActivatePassengerEffect();
-                EnablePlayerControl();
-            }
-        );
+        movement.StartWalkingToCar(playerCar.transform, () =>
+        {
+            HidePassenger();
+            ActivatePassengerEffect();
+            EnablePlayerControl();
+        });
     }
 
     private void ActivatePassengerEffect()
@@ -161,51 +248,28 @@ public class GhostPickupTrigger : MonoBehaviour
         switch (passengerType)
         {
             case PassengerType.Witch:
-                if (witchEffect == null && playerCar != null)
-                {
-                    witchEffect =
-                        playerCar.GetComponentInChildren<WitchCarEffect>();
-                }
-
                 if (witchEffect != null)
                     witchEffect.ActivateWitchEffect();
+                else
+                    Debug.LogWarning("WitchCarEffect not found on the player car.", this);
                 break;
 
             case PassengerType.Vampire:
-                if (vampireEffect == null && playerCar != null)
-                {
-                    vampireEffect =
-                        playerCar.GetComponent<VampireTeleportEffect>();
-                }
-
                 if (vampireEffect != null)
                     vampireEffect.ActivateVampireEffect();
+                else
+                    Debug.LogWarning("VampireTeleportEffect not found on the player car.", this);
                 break;
 
             case PassengerType.Zombie:
-                // Add your zombie effect here when ready.
                 Debug.Log("Zombie passenger picked up.");
                 break;
 
             case PassengerType.Skeleton:
-                if (skeletonEffect == null && playerCar != null)
-                {
-                    skeletonEffect =
-                        playerCar.GetComponent<SkeletonCarEffect>();
-                }
-
                 if (skeletonEffect != null)
-                {
-                    // Bones spawn after a qualifying obstacle collision.
                     skeletonEffect.ActivateSkeletonEffect();
-                }
                 else
-                {
-                    Debug.LogWarning(
-                        "SkeletonCarEffect is missing from the player car.",
-                        this
-                    );
-                }
+                    Debug.LogWarning("SkeletonCarEffect not found on the player car.", this);
                 break;
         }
     }
@@ -216,6 +280,8 @@ public class GhostPickupTrigger : MonoBehaviour
 
         if (ghostEffect != null)
             ghostEffect.ActivateGhostEffect();
+        else
+            Debug.LogWarning("GhostCarEffect not found on the player car.", this);
 
         EnablePlayerControl();
     }

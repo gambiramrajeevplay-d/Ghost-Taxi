@@ -66,7 +66,6 @@ public class GhostCarEffect : MonoBehaviour
 
             float radians = (angleStep * i + orbitAngle) * Mathf.Deg2Rad;
 
-            // Local to the player, so ghosts move with the car automatically.
             Vector3 flat = new Vector3(
                 Mathf.Cos(radians) * orbitRadius,
                 0f,
@@ -135,18 +134,15 @@ public class GhostCarEffect : MonoBehaviour
 
         for (int i = 0; i < ghostCount; i++)
         {
-            // Spawn as a child of the player car.
             GameObject g = Instantiate(ghostPrefab, player);
             g.transform.localPosition = Vector3.zero;
             g.transform.localRotation = Quaternion.identity;
             g.SetActive(true);
 
-            // This script drives the animation / movement.
             GhostMovement movement = g.GetComponent<GhostMovement>();
             if (movement != null)
                 movement.enabled = false;
 
-            // Keep orbiting ghosts from interfering with the car's physics.
             foreach (Collider c in g.GetComponentsInChildren<Collider>())
                 c.enabled = false;
 
@@ -158,13 +154,16 @@ public class GhostCarEffect : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Stops the ghost effect and destroys ALL ghost clones: the ones this script
+    /// spawned and any GhostOrbit clones spawned by GhostMovement.
+    /// </summary>
     public void DeactivateGhostEffect()
     {
-        if (!effectActive)
-            return;
-
         effectActive = false;
+
         DestroyGhosts();
+        DestroyOrbitGhosts();
     }
 
     public bool IsActive()
@@ -185,6 +184,30 @@ public class GhostCarEffect : MonoBehaviour
 
         ghosts = null;
         phaseOffsets = null;
+    }
+
+    // Removes clones created by GhostMovement.SpawnOrbitGhosts (they carry GhostOrbit).
+    private void DestroyOrbitGhosts()
+    {
+        Transform root = player;
+
+        if (root == null)
+        {
+            GameObject playerObject = GameObject.FindGameObjectWithTag(playerTag);
+            if (playerObject != null)
+                root = playerObject.transform;
+        }
+
+        if (root == null)
+            root = transform.root;
+
+        GhostOrbit[] orbits = root.GetComponentsInChildren<GhostOrbit>(true);
+
+        for (int i = 0; i < orbits.Length; i++)
+        {
+            if (orbits[i] != null)
+                Destroy(orbits[i].gameObject);
+        }
     }
 
     private void OnDestroy()

@@ -135,4 +135,19 @@ public class WitchCarEffect : MonoBehaviour
         if (carVisualRoot != null)
             carVisualRoot.localScale = originalScale;
     }
+
+    public void DeactivateWitchEffect()
+    {
+        effectActive = false;
+
+        if (scaleRoutine != null)
+        {
+            StopCoroutine(scaleRoutine);
+            scaleRoutine = null;
+        }
+
+        if (carVisualRoot != null)
+            carVisualRoot.localScale = originalScale;
+    }
+
 }

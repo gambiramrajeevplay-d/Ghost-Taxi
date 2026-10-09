@@ -52,6 +52,10 @@ public class SkeletonCarEffect : MonoBehaviour
     private readonly List<Coroutine> runningEffects =
         new List<Coroutine>();
 
+    // Everything spawned by this effect, so it can be cleaned up on deactivate.
+    private readonly List<GameObject> spawnedObjects =
+        new List<GameObject>();
+
     private void Awake()
     {
         playerCar = GetComponent<RCC_CarControllerV3>();
@@ -96,20 +100,16 @@ public class SkeletonCarEffect : MonoBehaviour
         if (collision == null || collision.contactCount == 0)
             return;
 
-        // Check the collided object's layer.
         int otherLayer = 1 << collision.gameObject.layer;
 
         if ((obstacleLayers.value & otherLayer) == 0)
             return;
 
-        // Ignore light contacts.
         float impactSpeed = collision.relativeVelocity.magnitude;
 
         if (impactSpeed < minimumImpactSpeed)
             return;
 
-        // Prevent multiple colliders from triggering the effect
-        // repeatedly during the same brief impact.
         if (Time.time < nextAllowedHitTime)
             return;
 
@@ -137,15 +137,14 @@ public class SkeletonCarEffect : MonoBehaviour
         Vector3 carPosition =
             playerCar.transform.TransformPoint(carSpawnOffset);
 
-        // Spawn a fresh copy of the second skeleton prefab for this hit.
         GameObject skeletonInstance = Instantiate(
             breakableSkeletonPrefab,
             carPosition,
             playerCar.transform.rotation
         );
 
-        // Collect all child transforms before detaching them.
-        // No Rigidbody or Collider components are required in the prefab.
+        spawnedObjects.Add(skeletonInstance);
+
         List<Transform> boneObjects = new List<Transform>();
 
         for (int i = 0; i < skeletonInstance.transform.childCount; i++)
@@ -165,7 +164,6 @@ public class SkeletonCarEffect : MonoBehaviour
             yield break;
         }
 
-        // Hide all discovered bone renderers until each bone is released.
         List<Renderer[]> boneRenderers = new List<Renderer[]>();
 
         foreach (Transform bone in boneObjects)
@@ -186,8 +184,8 @@ public class SkeletonCarEffect : MonoBehaviour
             if (bone == null)
                 continue;
 
-            // Preserve the existing bone world transform.
             bone.SetParent(null, true);
+            spawnedObjects.Add(bone.gameObject);
 
             Vector3 randomOffset = new Vector3(
                 Random.Range(-spawnSpread.x, spawnSpread.x),
@@ -198,7 +196,6 @@ public class SkeletonCarEffect : MonoBehaviour
             bone.position = carPosition +
                 playerCar.transform.TransformDirection(randomOffset);
 
-            // Add physics at runtime because the prefab has none.
             Rigidbody body = bone.GetComponent<Rigidbody>();
 
             if (body == null)
@@ -215,7 +212,6 @@ public class SkeletonCarEffect : MonoBehaviour
             {
                 BoxCollider box = bone.gameObject.AddComponent<BoxCollider>();
 
-                // Fit the collider approximately to the visible geometry.
                 Renderer renderer =
                     bone.GetComponentInChildren<Renderer>();
 
@@ -279,7 +275,6 @@ public class SkeletonCarEffect : MonoBehaviour
             );
         }
 
-        // The individual bones have been detached from the root.
         if (skeletonInstance != null)
             Destroy(skeletonInstance);
     }
@@ -291,7 +286,6 @@ public class SkeletonCarEffect : MonoBehaviour
         if (current == null)
             return;
 
-        // Each child GameObject is treated as one bone.
         results.Add(current);
 
         for (int i = 0; i < current.childCount; i++)
@@ -300,9 +294,33 @@ public class SkeletonCarEffect : MonoBehaviour
         }
     }
 
+    private void DestroySpawnedObjects()
+    {
+        for (int i = 0; i < spawnedObjects.Count; i++)
+        {
+            if (spawnedObjects[i] != null)
+                Destroy(spawnedObjects[i]);
+        }
+
+        spawnedObjects.Clear();
+    }
+
     private void OnDisable()
     {
         passengerPickedUp = false;
         runningEffects.Clear();
+    }
+
+    /// <summary>
+    /// Stops the effect, cancels in-progress bone spawning and removes all spawned bones.
+    /// </summary>
+    public void DeactivateSkeletonEffect()
+    {
+        passengerPickedUp = false;
+
+        StopAllCoroutines();
+        runningEffects.Clear();
+
+        DestroySpawnedObjects();
     }
 }
