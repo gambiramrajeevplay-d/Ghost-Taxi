@@ -12,39 +12,35 @@ public class GhostDropTrigger : MonoBehaviour
     }
 
     [Header("Passenger Prefabs")]
-    [Tooltip("Add the ghost, witch, or other passenger prefabs here.")]
     [SerializeField]
     private List<PassengerPrefabEntry> passengerPrefabs =
         new List<PassengerPrefabEntry>();
 
-    [Tooltip("Optional fallback spawn point. The script first searches the player car for a matching spawn point.")]
+    [Tooltip("Name used to select the passenger to drop, for example Witch or Ghost.")]
+    [SerializeField] private string passengerNameToDrop = "witch";
+
     [SerializeField] private Transform fallbackSpawnPoint;
 
     [Header("Player Car Spawn Point Search")]
-    [Tooltip("Name of the Transform on the player car used to spawn the passenger.")]
     [SerializeField] private string spawnPointName = "PassengerSpawnPoint";
-
-    [Tooltip("Optional tag used to find the passenger spawn point on the player car. Leave empty to skip tag search.")]
     [SerializeField] private string spawnPointTag = "";
 
+    [Header("Spawn Rotation")]
+    [SerializeField] private bool useSpawnPointRotation = false;
+    [SerializeField] private Vector3 spawnRotationOffset = Vector3.zero;
+
     [Header("Passenger Movement")]
-    [Tooltip("World-space direction. Default is world -Z.")]
-    [SerializeField] private Vector3 movementDirection = new Vector3(0f, 0f, -1f);
+    [SerializeField]
+    private Vector3 movementDirection =
+        new Vector3(0f, 0f, -1f);
 
     [SerializeField] private float movementDistance = 10f;
     [SerializeField] private float movementSpeed = 2f;
 
     [Header("Passenger Rotation")]
-    [Tooltip("Rotate the passenger so it faces the direction it moves.")]
     [SerializeField] private bool rotateToFaceDirection = true;
-
-    [Tooltip("Keep the passenger upright by ignoring the vertical part of the movement direction.")]
     [SerializeField] private bool keepUpright = true;
-
-    [Tooltip("Extra rotation (Euler angles) applied after facing the direction. Use this if the model's forward axis is not +Z, e.g. (0, 180, 0).")]
-    [SerializeField] private Vector3 rotationOffset = Vector3.zero;
-
-    [Tooltip("Turn speed in degrees per second. Set to 0 to snap instantly.")]
+    [SerializeField] private Vector3 movementRotationOffset = Vector3.zero;
     [SerializeField] private float rotationSpeed = 360f;
 
     [Header("Player Control")]
@@ -52,11 +48,14 @@ public class GhostDropTrigger : MonoBehaviour
     [SerializeField] private float controlResumeDelay = 0.25f;
 
     [Header("Passenger Effects")]
-    [Tooltip("Disable ghost, witch, vampire and skeleton effects when the player enters this trigger.")]
     [SerializeField] private bool disableAllEffectsOnDrop = true;
+
+    [Header("Finish")]
+    [SerializeField] private float finishNotificationDelay = 0f;
 
     private RCC_CarControllerV3 playerCar;
     private bool dropStarted;
+    private bool originalCanControl;
 
     private void OnTriggerEnter(Collider other)
     {
@@ -71,9 +70,8 @@ public class GhostDropTrigger : MonoBehaviour
 
         playerCar = car;
         dropStarted = true;
+        originalCanControl = playerCar.canControl;
 
-        // Disable effects FIRST. Some of them (e.g. vampire) set canControl = true
-        // when they deactivate, which would undo the control lock below.
         if (disableAllEffectsOnDrop)
             DisableAllPassengerEffects();
 
@@ -82,6 +80,7 @@ public class GhostDropTrigger : MonoBehaviour
             playerCar.canControl = false;
 
             Rigidbody rb = playerCar.GetComponent<Rigidbody>();
+
             if (rb != null)
             {
                 rb.velocity = Vector3.zero;
@@ -92,96 +91,178 @@ public class GhostDropTrigger : MonoBehaviour
         StartCoroutine(DropPassenger());
     }
 
+    // =========================================================
+    // DISABLE PASSENGER EFFECTS
+    // =========================================================
+
     private void DisableAllPassengerEffects()
     {
         if (playerCar == null)
             return;
 
-        // Ghost: removes the orbiting ghost clones.
-        GhostCarEffect ghost = playerCar.GetComponentInChildren<GhostCarEffect>(true);
+        GhostCarEffect ghost =
+            playerCar.GetComponentInChildren<GhostCarEffect>(true);
+
         if (ghost != null)
             ghost.DeactivateGhostEffect();
 
-        // Fallback: remove any orbit ghosts spawned by GhostMovement.
-        GhostOrbit[] orbitGhosts = playerCar.GetComponentsInChildren<GhostOrbit>(true);
-        for (int i = 0; i < orbitGhosts.Length; i++)
+        GhostOrbit[] orbitGhosts =
+            playerCar.GetComponentsInChildren<GhostOrbit>(true);
+
+        foreach (GhostOrbit orbit in orbitGhosts)
         {
-            if (orbitGhosts[i] != null)
-                Destroy(orbitGhosts[i].gameObject);
+            if (orbit != null)
+                Destroy(orbit.gameObject);
         }
 
-        // Witch: stops scaling and restores the car size.
-        WitchCarEffect witch = playerCar.GetComponentInChildren<WitchCarEffect>(true);
+        WitchCarEffect witch =
+            playerCar.GetComponentInChildren<WitchCarEffect>(true);
+
         if (witch != null)
             witch.DeactivateWitchEffect();
 
-        // Vampire: stops teleporting and restores the visual.
-        VampireTeleportEffect vampire = playerCar.GetComponentInChildren<VampireTeleportEffect>(true);
+        VampireTeleportEffect vampire =
+            playerCar.GetComponentInChildren<VampireTeleportEffect>(true);
+
         if (vampire != null)
             vampire.DeactivateVampireEffect();
 
-        // Skeleton: stops bone spawning and cleans up spawned bones.
-        SkeletonCarEffect skeleton = playerCar.GetComponentInChildren<SkeletonCarEffect>(true);
+        SkeletonCarEffect skeleton =
+            playerCar.GetComponentInChildren<SkeletonCarEffect>(true);
+
         if (skeleton != null)
             skeleton.DeactivateSkeletonEffect();
     }
 
+    // =========================================================
+    // DROP PASSENGER
+    // =========================================================
+
     private IEnumerator DropPassenger()
     {
-        if (passengerPrefabs == null || passengerPrefabs.Count == 0)
+        GameObject prefab = FindPrefabContaining(passengerNameToDrop);
+
+        if (prefab == null)
+            prefab = FindFirstValidPrefab();
+
+        if (prefab == null)
         {
             Debug.LogWarning(
-                "GhostDropTrigger: Add at least one passenger prefab to the list.",
+                "GhostDropTrigger: No valid passenger prefab assigned.",
                 this);
 
             yield return ResumeControls();
             yield break;
         }
 
-        // Find a ghost first; if no ghost is configured, use the first valid entry.
-        GameObject selectedPrefab = FindPrefabContaining("ghost");
+        Transform spawnPoint = FindPlayerCarSpawnPoint();
 
-        if (selectedPrefab == null)
-            selectedPrefab = FindFirstValidPrefab();
+        Vector3 spawnPosition = spawnPoint != null
+            ? spawnPoint.position
+            : fallbackSpawnPoint != null
+                ? fallbackSpawnPoint.position
+                : playerCar.transform.position;
 
-        if (selectedPrefab == null)
-        {
-            Debug.LogWarning(
-                "GhostDropTrigger: No valid passenger prefab is assigned.",
-                this);
+        Quaternion baseRotation = useSpawnPointRotation
+            ? (spawnPoint != null
+                ? spawnPoint.rotation
+                : fallbackSpawnPoint != null
+                    ? fallbackSpawnPoint.rotation
+                    : Quaternion.identity)
+            : Quaternion.identity;
 
-            yield return ResumeControls();
-            yield break;
-        }
-
-        Transform carSpawnPoint = FindPlayerCarSpawnPoint();
-        Vector3 spawnPosition = carSpawnPoint != null
-            ? carSpawnPoint.position
-            : (fallbackSpawnPoint != null ? fallbackSpawnPoint.position : playerCar.transform.position);
-
-        Quaternion spawnRotation = carSpawnPoint != null
-            ? carSpawnPoint.rotation
-            : (fallbackSpawnPoint != null ? fallbackSpawnPoint.rotation : playerCar.transform.rotation);
+        Quaternion initialRotation =
+            baseRotation * Quaternion.Euler(spawnRotationOffset);
 
         GameObject spawned = Instantiate(
-            selectedPrefab,
+            prefab,
             spawnPosition,
-            spawnRotation);
+            initialRotation);
 
         Vector3 direction = movementDirection.sqrMagnitude > 0.0001f
             ? movementDirection.normalized
             : Vector3.back;
 
-        Vector3 target = spawned.transform.position +
-                         direction * Mathf.Max(0f, movementDistance);
+        if (keepUpright)
+        {
+            direction.y = 0f;
 
-        float speed = Mathf.Max(0.01f, movementSpeed);
+            if (direction.sqrMagnitude < 0.0001f)
+                direction = Vector3.back;
 
-        // Work out the rotation the passenger should end up with.
-        Quaternion targetRotation = spawned.transform.rotation;
+            direction.Normalize();
+        }
+
+        // IMPORTANT:
+        // If this prefab has WitchMovement, that script handles
+        // movement, walking animation and ground detection.
+        WitchMovement witchMovement =
+            spawned.GetComponentInChildren<WitchMovement>(true);
+
+        if (witchMovement != null)
+        {
+            witchMovement.StartWalkingAway(
+                direction,
+                movementDistance,
+                movementSpeed);
+
+            while (spawned != null &&
+                   witchMovement != null &&
+                   witchMovement.IsMoving)
+            {
+                yield return null;
+            }
+        }
+        else
+        {
+            // Original movement for other passenger prefabs.
+            yield return MovePassengerNormally(
+                spawned,
+                direction,
+                initialRotation);
+        }
+
+        if (spawned != null)
+            Destroy(spawned);
+
+        if (finishNotificationDelay > 0f)
+            yield return new WaitForSeconds(finishNotificationDelay);
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.PassengerDropped();
+        }
+        else
+        {
+            Debug.LogWarning(
+                "GhostDropTrigger: GameManager instance not found.",
+                this);
+        }
+
+        yield return ResumeControls();
+    }
+
+    // =========================================================
+    // NORMAL MOVEMENT FOR NON-WITCH PASSENGERS
+    // =========================================================
+
+    private IEnumerator MovePassengerNormally(
+        GameObject spawned,
+        Vector3 direction,
+        Quaternion initialRotation)
+    {
+        if (spawned == null)
+            yield break;
+
+        Vector3 targetPosition =
+            spawned.transform.position +
+            direction * Mathf.Max(0f, movementDistance);
+
+        Quaternion targetRotation = initialRotation;
         bool hasTargetRotation = false;
 
-        if (rotateToFaceDirection)
+        if (rotateToFaceDirection &&
+            direction.sqrMagnitude > 0.0001f)
         {
             Vector3 lookDirection = direction;
 
@@ -191,45 +272,59 @@ public class GhostDropTrigger : MonoBehaviour
             if (lookDirection.sqrMagnitude > 0.0001f)
             {
                 targetRotation =
-                    Quaternion.LookRotation(lookDirection.normalized, Vector3.up) *
-                    Quaternion.Euler(rotationOffset);
+                    Quaternion.LookRotation(
+                        lookDirection.normalized,
+                        Vector3.up) *
+                    Quaternion.Euler(movementRotationOffset);
 
                 hasTargetRotation = true;
-
-                // Instant snap if no turn speed is set.
-                if (rotationSpeed <= 0f)
-                    spawned.transform.rotation = targetRotation;
             }
         }
 
-        // Move the spawned passenger away from the car along the configured direction.
+        float speed = Mathf.Max(0.01f, movementSpeed);
+
         while (spawned != null &&
-               Vector3.Distance(spawned.transform.position, target) > 0.05f)
+               Vector3.Distance(
+                   spawned.transform.position,
+                   targetPosition) > 0.05f)
         {
             spawned.transform.position = Vector3.MoveTowards(
                 spawned.transform.position,
-                target,
+                targetPosition,
                 speed * Time.deltaTime);
 
-            if (hasTargetRotation && rotationSpeed > 0f)
+            if (hasTargetRotation)
             {
-                spawned.transform.rotation = Quaternion.RotateTowards(
-                    spawned.transform.rotation,
-                    targetRotation,
-                    rotationSpeed * Time.deltaTime);
+                spawned.transform.rotation =
+                    rotationSpeed <= 0f
+                        ? targetRotation
+                        : Quaternion.RotateTowards(
+                            spawned.transform.rotation,
+                            targetRotation,
+                            rotationSpeed * Time.deltaTime);
             }
 
             yield return null;
         }
 
         if (spawned != null)
-            Destroy(spawned);
+        {
+            spawned.transform.position = targetPosition;
 
-        yield return ResumeControls();
+            if (hasTargetRotation)
+                spawned.transform.rotation = targetRotation;
+        }
     }
+
+    // =========================================================
+    // FIND PASSENGER PREFAB
+    // =========================================================
 
     private GameObject FindPrefabContaining(string searchText)
     {
+        if (string.IsNullOrWhiteSpace(searchText))
+            return null;
+
         foreach (PassengerPrefabEntry entry in passengerPrefabs)
         {
             if (entry == null || entry.prefab == null)
@@ -239,8 +334,12 @@ public class GhostDropTrigger : MonoBehaviour
                 ? entry.prefab.name
                 : entry.passengerName;
 
-            if (entryName.IndexOf(searchText, System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                entry.prefab.name.IndexOf(searchText, System.StringComparison.OrdinalIgnoreCase) >= 0)
+            if (entryName.IndexOf(
+                    searchText,
+                    System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                entry.prefab.name.IndexOf(
+                    searchText,
+                    System.StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 return entry.prefab;
             }
@@ -260,15 +359,20 @@ public class GhostDropTrigger : MonoBehaviour
         return null;
     }
 
+    // =========================================================
+    // FIND SPAWN POINT
+    // =========================================================
+
     private Transform FindPlayerCarSpawnPoint()
     {
         if (playerCar == null)
             return null;
 
+        Transform[] children =
+            playerCar.GetComponentsInChildren<Transform>(true);
+
         if (!string.IsNullOrWhiteSpace(spawnPointName))
         {
-            Transform[] children = playerCar.GetComponentsInChildren<Transform>(true);
-
             foreach (Transform child in children)
             {
                 if (child.name.Equals(
@@ -282,8 +386,6 @@ public class GhostDropTrigger : MonoBehaviour
 
         if (!string.IsNullOrWhiteSpace(spawnPointTag))
         {
-            Transform[] children = playerCar.GetComponentsInChildren<Transform>(true);
-
             foreach (Transform child in children)
             {
                 if (child.CompareTag(spawnPointTag))
@@ -294,18 +396,22 @@ public class GhostDropTrigger : MonoBehaviour
         return null;
     }
 
+    // =========================================================
+    // RESUME PLAYER CONTROL
+    // =========================================================
+
     private IEnumerator ResumeControls()
     {
         if (controlResumeDelay > 0f)
             yield return new WaitForSeconds(controlResumeDelay);
 
         if (playerCar != null)
-            playerCar.canControl = true;
+            playerCar.canControl = originalCanControl;
     }
 
     private void OnDisable()
     {
         if (dropStarted && playerCar != null)
-            playerCar.canControl = true;
+            playerCar.canControl = originalCanControl;
     }
 }

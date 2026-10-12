@@ -16,10 +16,10 @@ public class VampireTeleportEffect : MonoBehaviour
     [SerializeField] private float rewindSeconds = 5f;
 
     [Header("Squash Effect")]
-    [Tooltip("Time to quickly enlarge before the sudden squash/drop.")]
-    [SerializeField] private float squashExpandDuration = 0.12f;
+    [Tooltip("Total time of the anticipation (squash, then pop bigger).")]
+    [SerializeField] private float squashExpandDuration = 0.18f;
 
-    [Tooltip("How much to enlarge before the squash. 1.2 means 120% of original scale.")]
+    [Tooltip("How much to enlarge before the drop. 1.2 means 120% of original scale.")]
     [SerializeField] private float squashExpandMultiplier = 1.2f;
 
     [Tooltip("Compress the visual vertically during anticipation.")]
@@ -28,14 +28,20 @@ public class VampireTeleportEffect : MonoBehaviour
     [Tooltip("Stretch the visual horizontally during anticipation.")]
     [SerializeField] private float squashXZMultiplier = 1.12f;
 
-    [Tooltip("Time to drop from the squashed pose down to zero.")]
-    [SerializeField] private float shrinkDuration = 0.3f;
+    [Tooltip("Time to drop from the enlarged pose down to zero.")]
+    [SerializeField] private float shrinkDuration = 0.35f;
+
+    [Tooltip("Short pause while invisible, right at the teleport moment. Hides any pop-in.")]
+    [SerializeField] private float hiddenHoldDuration = 0.06f;
 
     [Tooltip("Time to grow back after teleporting. Controls are already restored during this animation.")]
-    [SerializeField] private float growDuration = 0.35f;
+    [SerializeField] private float growDuration = 0.45f;
 
-    [Tooltip("Small overshoot on the grow-back for a bouncy finish.")]
-    [SerializeField] private float growOvershoot = 1.12f;
+    [Tooltip("Strength of the bouncy overshoot while growing back. 0 = no overshoot, 1.7 = default bounce.")]
+    [SerializeField] private float growBounce = 1.4f;
+
+    [Tooltip("Strength of the wind-up on the shrink. 0 = none, 1 = subtle.")]
+    [SerializeField] private float shrinkWindUp = 0.8f;
 
     [Header("Ground")]
     [SerializeField] private LayerMask groundLayer;
@@ -64,6 +70,9 @@ public class VampireTeleportEffect : MonoBehaviour
         }
     }
 
+    // Never scale to exact zero: it can cause matrix / normal warnings.
+    private const float MinScale = 0.0001f;
+
     private readonly List<CarSnapshot> history = new List<CarSnapshot>();
 
     private RCC_CarControllerV3 playerCar;
@@ -79,6 +88,11 @@ public class VampireTeleportEffect : MonoBehaviour
     private float nextRecordTime;
     private Coroutine teleportLoopRoutine;
     private Coroutine growRoutine;
+
+    // Rigidbody state saved while the effect freezes the car.
+    private bool carFrozen;
+    private bool savedKinematic;
+    private RigidbodyInterpolation savedInterpolation;
 
     private void Awake()
     {
@@ -196,7 +210,6 @@ public class VampireTeleportEffect : MonoBehaviour
             if (!effectActive)
                 yield break;
 
-            // Controls have been returned by DoTeleport().
             // Start the next delay from the list immediately.
             index = (index + 1) % delays.Length;
         }
@@ -219,38 +232,35 @@ public class VampireTeleportEffect : MonoBehaviour
         Quaternion carRotationBeforeEffect = playerCar.transform.rotation;
 
         playerCar.canControl = false;
-        StopCarPhysics();
 
-        // Squash anticipation: enlarge the visual briefly, then collapse it.
+        // Freeze once (kinematic) instead of zeroing velocity every frame.
+        // This removes physics jitter fighting the squash animation.
+        FreezeCar();
+
+        // Squash anticipation: squash, then pop larger.
         yield return StartCoroutine(ExpandVisual());
+        if (!effectActive) yield break;
 
-        if (!effectActive)
-            yield break;
-
+        // Collapse to nothing.
         yield return StartCoroutine(ShrinkToZero());
+        if (!effectActive) yield break;
 
-        if (!effectActive)
-            yield break;
-
-        // Teleport position only. Do not apply any recorded rotation.
+        // Teleport position only. Rigidbody interpolation is disabled by FreezeCar,
+        // so the car doesn't smear between the old and new position.
         if (target != null)
         {
             Vector3 destination = target.position;
 
             if (carRigidbody != null)
+            {
                 carRigidbody.position = destination;
-            else
-                playerCar.transform.position = destination;
-
-            // Ensure the vehicle's original/current rotation is not changed.
-            if (carRigidbody != null)
                 carRigidbody.rotation = carRotationBeforeEffect;
-            else
-                playerCar.transform.rotation = carRotationBeforeEffect;
+            }
+
+            playerCar.transform.SetPositionAndRotation(destination, carRotationBeforeEffect);
 
             Physics.SyncTransforms();
             SnapCarToGround();
-            StopCarPhysics();
         }
         else
         {
@@ -259,17 +269,21 @@ public class VampireTeleportEffect : MonoBehaviour
                 this);
         }
 
-        // Reset only the model's local rotation, never spin the car.
         ResetVisualRotation();
 
-        // Begin recording from the new position. Keeping only this fresh
-        // segment prevents history from crossing a teleport.
+        // Tiny invisible pause so the car has settled before it reappears.
+        if (hiddenHoldDuration > 0f)
+            yield return new WaitForSeconds(hiddenHoldDuration);
+
+        if (!effectActive) yield break;
+
+        // Begin recording from the new position.
         history.Clear();
         RecordState();
         nextRecordTime = Time.time + Mathf.Max(0.01f, recordInterval);
 
-        // Force controls back on immediately after the teleport effect.
-        // This intentionally uses true instead of originalCanControl.
+        // Give physics back and return controls.
+        UnfreezeCar();
         playerCar.canControl = true;
         isTeleporting = false;
 
@@ -277,61 +291,13 @@ public class VampireTeleportEffect : MonoBehaviour
         growRoutine = StartCoroutine(Grow());
     }
 
+    // ------------------------------------------------------------------
+    // Animation
+    // ------------------------------------------------------------------
+
     private IEnumerator ExpandVisual()
     {
-        if (visualRoot == null)
-        {
-            yield return new WaitForSeconds(Mathf.Max(0.01f, squashExpandDuration));
-            yield break;
-        }
-
-        float duration = Mathf.Max(0.01f, squashExpandDuration);
-        float elapsed = 0f;
-
-        // A quick anticipation squash: slightly wider and shorter, then pop larger.
-        Vector3 squashScale = new Vector3(
-            originalScale.x * Mathf.Max(1f, squashXZMultiplier),
-            originalScale.y * Mathf.Clamp(squashYMultiplier, 0.1f, 1f),
-            originalScale.z * Mathf.Max(1f, squashXZMultiplier));
-
-        Vector3 expandedScale = originalScale * Mathf.Max(1f, squashExpandMultiplier);
-
-        while (elapsed < duration)
-        {
-            if (!effectActive)
-                yield break;
-
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-
-            // Squash quickly in the first half, then pop outward.
-            Vector3 scale;
-            if (t < 0.45f)
-            {
-                float squashT = Mathf.SmoothStep(0f, 1f, t / 0.45f);
-                scale = Vector3.Lerp(originalScale, squashScale, squashT);
-            }
-            else
-            {
-                float popT = Mathf.SmoothStep(0f, 1f, (t - 0.45f) / 0.55f);
-                scale = Vector3.Lerp(squashScale, expandedScale, popT);
-            }
-
-            visualRoot.localScale = scale;
-            // No visual or car rotation is applied.
-            visualRoot.localRotation = originalVisualRotation;
-
-            StopCarPhysics();
-            yield return null;
-        }
-
-        visualRoot.localScale = expandedScale;
-        visualRoot.localRotation = originalVisualRotation;
-    }
-
-    private IEnumerator ShrinkToZero()
-    {
-        float duration = Mathf.Max(0.01f, shrinkDuration);
+        float duration = Mathf.Max(0.02f, squashExpandDuration);
 
         if (visualRoot == null)
         {
@@ -339,75 +305,148 @@ public class VampireTeleportEffect : MonoBehaviour
             yield break;
         }
 
-        float elapsed = 0f;
+        Vector3 squashScale = new Vector3(
+            originalScale.x * Mathf.Max(1f, squashXZMultiplier),
+            originalScale.y * Mathf.Clamp(squashYMultiplier, 0.1f, 1f),
+            originalScale.z * Mathf.Max(1f, squashXZMultiplier));
+
         Vector3 expandedScale = originalScale * Mathf.Max(1f, squashExpandMultiplier);
 
-        while (elapsed < duration)
+        // Two continuous phases. Each starts where the previous one ended,
+        // so there is no visible hitch between them.
+        float squashTime = duration * 0.4f;
+        float popTime = duration - squashTime;
+
+        yield return AnimateScale(originalScale, squashScale, squashTime, EaseOutCubic);
+        if (!effectActive) yield break;
+
+        yield return AnimateScale(squashScale, expandedScale, popTime, EaseOutBack05);
+    }
+
+    private IEnumerator ShrinkToZero()
+    {
+        float duration = Mathf.Max(0.02f, shrinkDuration);
+
+        if (visualRoot == null)
         {
-            if (!effectActive)
-                yield break;
-
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-
-            // Implode quickly toward zero near the end.
-            float eased = 1f - Mathf.Pow(1f - t, 3f);
-            visualRoot.localScale = Vector3.Lerp(expandedScale, Vector3.zero, eased);
-            visualRoot.localRotation = originalVisualRotation;
-
-            StopCarPhysics();
-            yield return null;
+            yield return new WaitForSeconds(duration);
+            yield break;
         }
 
-        visualRoot.localScale = Vector3.zero;
-        visualRoot.localRotation = originalVisualRotation;
+        Vector3 expandedScale = originalScale * Mathf.Max(1f, squashExpandMultiplier);
+        Vector3 zeroScale = originalScale * MinScale;
+
+        float windUp = Mathf.Max(0f, shrinkWindUp);
+
+        yield return AnimateScale(
+            expandedScale,
+            zeroScale,
+            duration,
+            t => EaseInBack(t, windUp));
+
+        if (visualRoot != null)
+            visualRoot.localScale = zeroScale;
     }
 
     private IEnumerator Grow()
     {
         isGrowing = true;
 
-        float duration = Mathf.Max(0.01f, growDuration);
+        float duration = Mathf.Max(0.02f, growDuration);
 
         if (visualRoot != null)
         {
             visualRoot.localRotation = originalVisualRotation;
-            float elapsed = 0f;
-            Vector3 overshootScale = originalScale * Mathf.Max(1f, growOvershoot);
+            Vector3 zeroScale = originalScale * MinScale;
+            float bounce = Mathf.Max(0f, growBounce);
 
-            while (elapsed < duration)
-            {
-                if (!effectActive)
-                {
-                    isGrowing = false;
-                    yield break;
-                }
+            // One smooth ease-out-back: grows, overshoots slightly, settles.
+            yield return AnimateScale(
+                zeroScale,
+                originalScale,
+                duration,
+                t => EaseOutBack(t, bounce));
 
-                elapsed += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
-
-                // Grow from invisible, briefly overshoot, then settle at original scale.
-                if (t < 0.72f)
-                {
-                    float growT = Mathf.SmoothStep(0f, 1f, t / 0.72f);
-                    visualRoot.localScale = Vector3.Lerp(Vector3.zero, overshootScale, growT);
-                }
-                else
-                {
-                    float settleT = Mathf.SmoothStep(0f, 1f, (t - 0.72f) / 0.28f);
-                    visualRoot.localScale = Vector3.Lerp(overshootScale, originalScale, settleT);
-                }
-
-                visualRoot.localRotation = originalVisualRotation;
-                yield return null;
-            }
-
-            ResetVisual();
+            if (effectActive)
+                ResetVisual();
         }
 
         isGrowing = false;
         growRoutine = null;
     }
+
+    /// <summary>
+    /// Smoothly animates the visual scale. The easing function may overshoot 0..1.
+    /// Uses Vector3.LerpUnclamped so overshoot is not clipped.
+    /// </summary>
+    private IEnumerator AnimateScale(Vector3 from, Vector3 to, float duration, System.Func<float, float> ease)
+    {
+        duration = Mathf.Max(0.0001f, duration);
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            if (!effectActive || visualRoot == null)
+                yield break;
+
+            // Clamp dt so a single frame hitch can't skip the animation.
+            elapsed += Mathf.Min(Time.deltaTime, 0.05f);
+            float t = Mathf.Clamp01(elapsed / duration);
+
+            Vector3 s = Vector3.LerpUnclamped(from, to, ease(t));
+            s.x = Mathf.Max(MinScale, s.x);
+            s.y = Mathf.Max(MinScale, s.y);
+            s.z = Mathf.Max(MinScale, s.z);
+
+            visualRoot.localScale = s;
+            visualRoot.localRotation = originalVisualRotation;
+
+            yield return null;
+        }
+
+        if (effectActive && visualRoot != null)
+        {
+            Vector3 end = to;
+            end.x = Mathf.Max(MinScale, end.x);
+            end.y = Mathf.Max(MinScale, end.y);
+            end.z = Mathf.Max(MinScale, end.z);
+            visualRoot.localScale = end;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Easing functions
+    // ------------------------------------------------------------------
+
+    private static float EaseOutCubic(float t)
+    {
+        float inv = 1f - t;
+        return 1f - inv * inv * inv;
+    }
+
+    private static float EaseOutBack05(float t)
+    {
+        return EaseOutBack(t, 0.5f);
+    }
+
+    private static float EaseOutBack(float t, float strength)
+    {
+        float c1 = strength;
+        float c3 = c1 + 1f;
+        float u = t - 1f;
+        return 1f + c3 * u * u * u + c1 * u * u;
+    }
+
+    private static float EaseInBack(float t, float strength)
+    {
+        float c1 = strength;
+        float c3 = c1 + 1f;
+        return c3 * t * t * t - c1 * t * t;
+    }
+
+    // ------------------------------------------------------------------
+    // History
+    // ------------------------------------------------------------------
 
     private void RecordState()
     {
@@ -457,6 +496,10 @@ public class VampireTeleportEffect : MonoBehaviour
         return history[history.Count - 1];
     }
 
+    // ------------------------------------------------------------------
+    // Ground / physics helpers
+    // ------------------------------------------------------------------
+
     private void SnapCarToGround()
     {
         if (playerCar == null)
@@ -484,8 +527,8 @@ public class VampireTeleportEffect : MonoBehaviour
 
         if (carRigidbody != null)
             carRigidbody.position = pos;
-        else
-            playerCar.transform.position = pos;
+
+        playerCar.transform.position = pos;
 
         Physics.SyncTransforms();
     }
@@ -508,13 +551,43 @@ public class VampireTeleportEffect : MonoBehaviour
         return Mathf.Max(0f, playerCar.transform.position.y - lowest);
     }
 
-    private void StopCarPhysics()
+    /// <summary>Stops the car and makes it kinematic so nothing pushes it during the effect.</summary>
+    private void FreezeCar()
     {
-        if (carRigidbody == null)
+        if (carRigidbody == null || carFrozen)
             return;
 
-        carRigidbody.velocity = Vector3.zero;
-        carRigidbody.angularVelocity = Vector3.zero;
+        savedKinematic = carRigidbody.isKinematic;
+        savedInterpolation = carRigidbody.interpolation;
+
+        // Zero velocity BEFORE going kinematic (setting it afterwards logs warnings).
+        if (!carRigidbody.isKinematic)
+        {
+            carRigidbody.velocity = Vector3.zero;
+            carRigidbody.angularVelocity = Vector3.zero;
+        }
+
+        carRigidbody.interpolation = RigidbodyInterpolation.None;
+        carRigidbody.isKinematic = true;
+        carFrozen = true;
+    }
+
+    /// <summary>Restores the rigidbody to how it was before the effect.</summary>
+    private void UnfreezeCar()
+    {
+        if (carRigidbody == null || !carFrozen)
+            return;
+
+        carRigidbody.isKinematic = savedKinematic;
+        carRigidbody.interpolation = savedInterpolation;
+
+        if (!carRigidbody.isKinematic)
+        {
+            carRigidbody.velocity = Vector3.zero;
+            carRigidbody.angularVelocity = Vector3.zero;
+        }
+
+        carFrozen = false;
     }
 
     private void ResetVisualRotation()
@@ -542,11 +615,13 @@ public class VampireTeleportEffect : MonoBehaviour
         teleportLoopRoutine = null;
         growRoutine = null;
 
+        UnfreezeCar();
         ResetVisual();
 
         if (playerCar != null)
             playerCar.canControl = true;
     }
+
     public void DeactivateVampireEffect()
     {
         effectActive = false;
@@ -558,6 +633,7 @@ public class VampireTeleportEffect : MonoBehaviour
         teleportLoopRoutine = null;
         growRoutine = null;
 
+        UnfreezeCar();
         ResetVisual();
 
         if (playerCar != null)
@@ -565,6 +641,5 @@ public class VampireTeleportEffect : MonoBehaviour
 
         history.Clear();
         TimeUntilNextTeleport = 0f;
-
     }
 }

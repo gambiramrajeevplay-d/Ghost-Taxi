@@ -3,14 +3,19 @@ using System.Collections;
 
 public class WitchMovement : MonoBehaviour
 {
+    private enum MovementMode
+    {
+        None,
+        TowardCar,
+        AwayFromCar
+    }
+
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 2.5f;
     [SerializeField] private float rotationSpeed = 8f;
 
-    [Header("Ground")]
-    [Tooltip("Ground layer used to keep the witch on the ground.")]
+    [Header("Ground Detection")]
     [SerializeField] private LayerMask groundLayer;
-
     [SerializeField] private float groundRayHeight = 2f;
     [SerializeField] private float groundRayDistance = 5f;
     [SerializeField] private float groundOffset = 0f;
@@ -20,63 +25,84 @@ public class WitchMovement : MonoBehaviour
     [SerializeField] private Animator animator;
 
     private Transform playerCar;
-
-    private bool walkingToCar;
-    private bool pickedUp;
-
     private System.Action pickupComplete;
+    private MovementMode movementMode = MovementMode.None;
 
-    private int walkingParameterHash;
+    private Vector3 destination;
+    private Vector3 walkDirection;
+
+    private bool pickedUp;
     private bool hasWalkingParameter;
+    private int walkingParameterHash;
+
+    public bool IsMoving =>
+        movementMode != MovementMode.None && !pickedUp;
 
     private void Awake()
     {
         if (animator == null)
-        {
-            animator = GetComponentInChildren<Animator>();
-        }
+            animator = GetComponentInChildren<Animator>(true);
+
+        walkingParameterHash =
+            Animator.StringToHash(walkingParameter);
+
+        hasWalkingParameter = false;
 
         if (animator == null)
         {
             Debug.LogError(
                 "WitchMovement: No Animator found.",
-                this
-            );
-
+                this);
             return;
         }
 
-        walkingParameterHash =
-            Animator.StringToHash(walkingParameter);
-
-        hasWalkingParameter =
-            HasAnimatorParameter(
-                animator,
-                walkingParameterHash
-            );
+        foreach (AnimatorControllerParameter parameter
+                 in animator.parameters)
+        {
+            if (parameter.nameHash == walkingParameterHash &&
+                parameter.type == AnimatorControllerParameterType.Bool)
+            {
+                hasWalkingParameter = true;
+                break;
+            }
+        }
 
         if (!hasWalkingParameter)
         {
             Debug.LogError(
-                "WitchMovement: Animator does not contain Bool parameter '" +
-                walkingParameter +
-                "'.",
-                animator
-            );
+                "WitchMovement: Animator needs a Bool parameter named '" +
+                walkingParameter + "'.",
+                animator);
+        }
+
+        if (groundLayer.value == 0)
+        {
+            Debug.LogWarning(
+                "WitchMovement: Assign the ground layer in the Inspector.",
+                this);
         }
     }
 
     private void Update()
     {
-        if (!walkingToCar || pickedUp)
+        if (pickedUp)
             return;
 
-        WalkTowardsCar();
+        switch (movementMode)
+        {
+            case MovementMode.TowardCar:
+                WalkTowardsCar();
+                break;
+
+            case MovementMode.AwayFromCar:
+                WalkAway();
+                break;
+        }
     }
 
-    // =========================================================
-    // START WALKING
-    // =========================================================
+    // =====================================================
+    // PICKUP: WALK TOWARDS THE CAR
+    // =====================================================
 
     public void StartWalkingToCar(
         Transform car,
@@ -85,78 +111,158 @@ public class WitchMovement : MonoBehaviour
         if (car == null)
         {
             Debug.LogWarning(
-                "WitchMovement: Player car is null."
-            );
-
+                "WitchMovement: Player car is null.",
+                this);
             return;
         }
 
         playerCar = car;
+
+        // IMPORTANT: Save the callback so player controls
+        // can be restored when pickup finishes.
         pickupComplete = onComplete;
 
         pickedUp = false;
-        walkingToCar = true;
+        movementMode = MovementMode.TowardCar;
 
         SetWalking(true);
     }
-
-    // =========================================================
-    // WALK TOWARDS CAR
-    // =========================================================
 
     private void WalkTowardsCar()
     {
         if (playerCar == null)
         {
-            StopWalking();
+            StopMovement();
             return;
         }
 
-        Vector3 targetPosition = playerCar.position;
+        Vector3 target = playerCar.position;
+        target.y = transform.position.y;
 
-        // Keep witch at current Y.
-        targetPosition.y = transform.position.y;
-
-        Vector3 direction =
-            targetPosition - transform.position;
-
+        Vector3 direction = target - transform.position;
         direction.y = 0f;
 
-        // Rotate toward car.
         if (direction.sqrMagnitude > 0.001f)
         {
-            Quaternion targetRotation =
-                Quaternion.LookRotation(direction);
+            RotateTowards(direction);
 
-            transform.rotation =
-                Quaternion.Slerp(
-                    transform.rotation,
-                    targetRotation,
-                    rotationSpeed * Time.deltaTime
-                );
+            transform.position = Vector3.MoveTowards(
+                transform.position,
+                target,
+                moveSpeed * Time.deltaTime);
         }
 
-        // Move toward car.
-        transform.position =
-            Vector3.MoveTowards(
-                transform.position,
-                targetPosition,
-                moveSpeed * Time.deltaTime
-            );
-
-        // Keep witch on ground.
         KeepOnGround();
-
         SetWalking(true);
     }
 
-    // =========================================================
-    // WITCH COLLIDES WITH CAR
-    // =========================================================
+    // =====================================================
+    // DROP: WALK AWAY FROM THE CAR
+    // =====================================================
+
+    public void StartWalkingAway(
+        Vector3 direction,
+        float distance,
+        float speed)
+    {
+        StopAllCoroutines();
+
+        playerCar = null;
+        pickupComplete = null;
+        pickedUp = false;
+
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.001f)
+            direction = Vector3.back;
+
+        walkDirection = direction.normalized;
+        moveSpeed = Mathf.Max(0.01f, speed);
+
+        KeepOnGround();
+
+        destination = transform.position +
+                      walkDirection * Mathf.Max(0f, distance);
+
+        movementMode = MovementMode.AwayFromCar;
+
+        SetWalking(distance > 0f);
+    }
+
+    private void WalkAway()
+    {
+        Vector3 remaining = destination - transform.position;
+        remaining.y = 0f;
+
+        if (remaining.sqrMagnitude <= 0.01f)
+        {
+            StopMovement();
+            return;
+        }
+
+        RotateTowards(walkDirection);
+
+        transform.position = Vector3.MoveTowards(
+            transform.position,
+            destination,
+            moveSpeed * Time.deltaTime);
+
+        KeepOnGround();
+        SetWalking(true);
+    }
+
+    // =====================================================
+    // ROTATION
+    // =====================================================
+
+    private void RotateTowards(Vector3 direction)
+    {
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.001f)
+            return;
+
+        Quaternion targetRotation = Quaternion.LookRotation(
+            direction.normalized,
+            Vector3.up);
+
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            targetRotation,
+            rotationSpeed * Time.deltaTime);
+    }
+
+    // =====================================================
+    // GROUND DETECTION
+    // =====================================================
+
+    private void KeepOnGround()
+    {
+        Vector3 rayOrigin =
+            transform.position + Vector3.up * groundRayHeight;
+
+        if (Physics.Raycast(
+            rayOrigin,
+            Vector3.down,
+            out RaycastHit hit,
+            groundRayDistance,
+            groundLayer,
+            QueryTriggerInteraction.Ignore))
+        {
+            Vector3 position = transform.position;
+            position.y = hit.point.y + groundOffset;
+            transform.position = position;
+        }
+    }
+
+    // =====================================================
+    // PICKUP COLLISION
+    // =====================================================
 
     private void OnTriggerEnter(Collider other)
     {
-        if (pickedUp)
+        if (pickedUp ||
+            movementMode != MovementMode.TowardCar)
             return;
 
         RCC_CarControllerV3 car =
@@ -165,173 +271,70 @@ public class WitchMovement : MonoBehaviour
         if (car == null)
             return;
 
-        // Only accept the car we were walking toward.
-        if (playerCar != null &&
-            car.transform != playerCar)
-        {
+        if (playerCar != null && car.transform != playerCar)
             return;
-        }
 
         pickedUp = true;
-        walkingToCar = false;
+        movementMode = MovementMode.None;
 
         SetWalking(false);
 
-        Debug.Log("Witch entered player car.");
-
-        StartCoroutine(PickupWitch(car));
+        StartCoroutine(FinishPickup());
     }
 
-    // =========================================================
-    // PICKUP
-    // =========================================================
-
-    private IEnumerator PickupWitch(
-        RCC_CarControllerV3 car)
+    private IEnumerator FinishPickup()
     {
-        // Small delay if you want the witch to visually enter
-        // the car before disappearing.
         yield return new WaitForSeconds(0.05f);
 
-        // Stop movement.
-        StopWalking();
+        StopMovement();
 
-        // Tell GhostPickupTrigger that pickup is complete.
-        pickupComplete?.Invoke();
-
+        // Notify GhostPickupTrigger BEFORE disabling the witch.
+        System.Action callback = pickupComplete;
         pickupComplete = null;
 
-        // Disable witch.
+        if (callback != null)
+            callback.Invoke();
+
         gameObject.SetActive(false);
     }
 
-    // =========================================================
-    // STOP
-    // =========================================================
+    // =====================================================
+    // STOP / ANIMATION
+    // =====================================================
 
-    private void StopWalking()
+    private void StopMovement()
     {
-        walkingToCar = false;
-
+        movementMode = MovementMode.None;
         SetWalking(false);
     }
 
-    // =========================================================
-    // GROUND
-    // =========================================================
-
-    private void KeepOnGround()
+    private void SetWalking(bool walking)
     {
-        Vector3 rayOrigin =
-            transform.position +
-            Vector3.up * groundRayHeight;
-
-        RaycastHit hit;
-
-        if (Physics.Raycast(
-            rayOrigin,
-            Vector3.down,
-            out hit,
-            groundRayDistance,
-            groundLayer,
-            QueryTriggerInteraction.Ignore))
-        {
-            Vector3 position =
-                transform.position;
-
-            position.y =
-                hit.point.y + groundOffset;
-
-            transform.position =
-                position;
-        }
-    }
-
-    // =========================================================
-    // ANIMATION
-    // =========================================================
-
-    private void SetWalking(bool value)
-    {
-        if (animator == null)
+        if (animator == null || !hasWalkingParameter)
             return;
 
-        if (!hasWalkingParameter)
-            return;
-
-        animator.SetBool(
-            walkingParameterHash,
-            value
-        );
+        animator.SetBool(walkingParameterHash, walking);
     }
-
-    // =========================================================
-    // CHECK ANIMATOR PARAMETER
-    // =========================================================
-
-    private bool HasAnimatorParameter(
-        Animator targetAnimator,
-        int parameterHash)
-    {
-        AnimatorControllerParameter[] parameters =
-            targetAnimator.parameters;
-
-        for (int i = 0; i < parameters.Length; i++)
-        {
-            if (parameters[i].nameHash == parameterHash)
-            {
-                if (parameters[i].type ==
-                    AnimatorControllerParameterType.Bool)
-                {
-                    return true;
-                }
-
-                Debug.LogError(
-                    "WitchMovement: '" +
-                    walkingParameter +
-                    "' is not a Bool parameter.",
-                    targetAnimator
-                );
-
-                return false;
-            }
-        }
-
-        return false;
-    }
-
-    // =========================================================
-    // DISABLE
-    // =========================================================
 
     private void OnDisable()
     {
-        if (animator != null &&
-            hasWalkingParameter)
-        {
-            animator.SetBool(
-                walkingParameterHash,
-                false
-            );
-        }
+        if (animator != null && hasWalkingParameter)
+            animator.SetBool(walkingParameterHash, false);
     }
 
-    // =========================================================
-    // GIZMO
-    // =========================================================
+    // =====================================================
+    // GROUND RAY VISUALIZATION
+    // =====================================================
 
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;
 
-        Vector3 rayOrigin =
-            transform.position +
-            Vector3.up * groundRayHeight;
+        Vector3 origin =
+            transform.position + Vector3.up * groundRayHeight;
 
         Gizmos.DrawLine(
-            rayOrigin,
-            rayOrigin +
-            Vector3.down * groundRayDistance
-        );
+            origin,
+            origin + Vector3.down * groundRayDistance);
     }
 }
