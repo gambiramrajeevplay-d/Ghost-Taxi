@@ -47,6 +47,12 @@ public class GhostDropTrigger : MonoBehaviour
     [SerializeField] private bool stopPlayerDuringDrop = true;
     [SerializeField] private float controlResumeDelay = 0.25f;
 
+    [Header("Smooth Stop")]
+    [Tooltip("How long the car takes to slow down to a stop after entering the trigger.")]
+    [SerializeField] private float stopDuration = 0.9f;
+    [Tooltip("The player keeps control for this long, then controls are taken away. Must be less than Stop Duration.")]
+    [SerializeField] private float controlLossDelay = 0.35f;
+
     [Header("Passenger Effects")]
     [SerializeField] private bool disableAllEffectsOnDrop = true;
 
@@ -54,6 +60,7 @@ public class GhostDropTrigger : MonoBehaviour
     [SerializeField] private float finishNotificationDelay = 0f;
 
     private RCC_CarControllerV3 playerCar;
+    private Rigidbody playerRigidbody;
     private bool dropStarted;
     private bool originalCanControl;
 
@@ -69,26 +76,77 @@ public class GhostDropTrigger : MonoBehaviour
             return;
 
         playerCar = car;
+        playerRigidbody = playerCar.GetComponent<Rigidbody>();
         dropStarted = true;
         originalCanControl = playerCar.canControl;
 
         if (disableAllEffectsOnDrop)
             DisableAllPassengerEffects();
 
-        if (stopPlayerDuringDrop)
+        StartCoroutine(DropPassenger());
+    }
+
+    // =========================================================
+    // SMOOTH STOP
+    // =========================================================
+
+    private IEnumerator SmoothStopPlayer()
+    {
+        if (playerCar == null)
+            yield break;
+
+        float duration = Mathf.Max(0.01f, stopDuration);
+        float controlDelay = Mathf.Clamp(controlLossDelay, 0f, duration);
+        bool controlsRemoved = false;
+        float elapsed = 0f;
+        float previousRemaining = 1f;
+
+        if (controlDelay <= 0f)
         {
             playerCar.canControl = false;
+            controlsRemoved = true;
+        }
 
-            Rigidbody rb = playerCar.GetComponent<Rigidbody>();
+        while (elapsed < duration)
+        {
+            yield return new WaitForFixedUpdate();
 
-            if (rb != null)
+            if (playerCar == null)
+                yield break;
+
+            elapsed += Time.fixedDeltaTime;
+
+            // Take controls away after a short delay instead of instantly.
+            if (!controlsRemoved && elapsed >= controlDelay)
             {
-                rb.velocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
+                playerCar.canControl = false;
+                controlsRemoved = true;
+            }
+
+            float t = Mathf.Clamp01(elapsed / duration);
+            float remaining = 1f - Mathf.SmoothStep(0f, 1f, t);
+            float ratio = previousRemaining > 0.0001f ? remaining / previousRemaining : 0f;
+            previousRemaining = remaining;
+
+            if (playerRigidbody != null)
+            {
+                // Scale the CURRENT velocity so steering/coasting still looks natural.
+                // Vertical speed is untouched so gravity and bumps stay normal.
+                Vector3 v = playerRigidbody.velocity;
+                playerRigidbody.velocity = new Vector3(v.x * ratio, v.y, v.z * ratio);
+                playerRigidbody.angularVelocity *= ratio;
             }
         }
 
-        StartCoroutine(DropPassenger());
+        if (!controlsRemoved)
+            playerCar.canControl = false;
+
+        if (playerRigidbody != null)
+        {
+            Vector3 v = playerRigidbody.velocity;
+            playerRigidbody.velocity = new Vector3(0f, v.y, 0f);
+            playerRigidbody.angularVelocity = Vector3.zero;
+        }
     }
 
     // =========================================================
@@ -140,6 +198,10 @@ public class GhostDropTrigger : MonoBehaviour
 
     private IEnumerator DropPassenger()
     {
+        // Slow the car down smoothly before the passenger is dropped.
+        if (stopPlayerDuringDrop)
+            yield return SmoothStopPlayer();
+
         GameObject prefab = FindPrefabContaining(passengerNameToDrop);
 
         if (prefab == null)
