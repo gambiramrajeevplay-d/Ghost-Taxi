@@ -530,6 +530,14 @@ MonoBehaviour:
   TPSOffsetX: 0
   TPSOffsetY: 0.5
   TPSAutoFocus: 0
+  showChasingMonster: 1
+  monsterMaxDistance: 45
+  monsterTurnWeight: 0.65
+  monsterLookWeight: 0.5
+  monsterExtraDistance: 4
+  monsterExtraHeight: 1.5
+  monsterExtraFOV: 8
+  monsterBlendSpeed: 1.5
   TPSMinimumFOV: 50
   TPSMaximumFOV: 70
   hoodCameraFOV: 60
@@ -542,6 +550,11 @@ MonoBehaviour:
   orbitYSpeed: 250
   orbitSmooth: 10
   oldOrbitY: 0
+--- !u!1 &143559380 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4857919718697297307, guid: 3c594ec14bab0344e94775e4b7c83779, type: 3}
+  m_PrefabInstance: {fileID: 5740864596019355811}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &148051361
 GameObject:
   m_ObjectHideFlags: 0
@@ -1342,8 +1355,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: de54c611e2a59824a97884fd3526642f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  passengerType: 1
-  passenger: {fileID: 2254997069900992866}
+  passengerType: 4
+  passenger: {fileID: 143559380}
   stopPlayerDuringPickup: 1
   stopDuration: 0.9
   controlLossDelay: 0.35
@@ -1559,8 +1572,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   passengerPrefabs:
-  - passengerName: Witch
-    prefab: {fileID: 196608523725690406, guid: 1fc31dea4bf07294bbc3dad33ec890cd, type: 3}
+  - passengerName: Skeleton
+    prefab: {fileID: 4857919718697297307, guid: 3c594ec14bab0344e94775e4b7c83779, type: 3}
   passengerNameToDrop: witch
   fallbackSpawnPoint: {fileID: 1284133517}
   spawnPointName: PassengerSpawnPoint
@@ -22149,11 +22162,6 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -2083242682504486353, guid: 30f960476a2b4aa43a3d4fd28e87ac6b, type: 3}
---- !u!1 &2254997069900992866 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 196608523725690406, guid: 1fc31dea4bf07294bbc3dad33ec890cd, type: 3}
-  m_PrefabInstance: {fileID: 2157546971534264132}
-  m_PrefabAsset: {fileID: 0}
 --- !u!23 &2255772669074356891
 MeshRenderer:
   m_ObjectHideFlags: 0

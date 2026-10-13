@@ -683,6 +683,10 @@ MonoBehaviour:
   enableSway: 1
   swayAmount: 3
   swaySpeed: 1.5
+  ghostSound: {fileID: 8300000, guid: 73bafb379c092f3458fdeacf5c89bb4d, type: 3}
+  soundInterval: 10
+  soundVolume: 1
+  playSoundImmediately: 1
 --- !u!1 &8386271090169761566
 GameObject:
   m_ObjectHideFlags: 0

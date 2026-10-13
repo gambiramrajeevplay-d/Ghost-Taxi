@@ -530,6 +530,14 @@ MonoBehaviour:
   TPSOffsetX: 0
   TPSOffsetY: 0.5
   TPSAutoFocus: 0
+  showChasingMonster: 1
+  monsterMaxDistance: 45
+  monsterTurnWeight: 0.65
+  monsterLookWeight: 0.5
+  monsterExtraDistance: 4
+  monsterExtraHeight: 1.5
+  monsterExtraFOV: 8
+  monsterBlendSpeed: 1.5
   TPSMinimumFOV: 50
   TPSMaximumFOV: 70
   hoodCameraFOV: 60
@@ -1338,8 +1346,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: de54c611e2a59824a97884fd3526642f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  passengerType: 4
-  passenger: {fileID: 5740864596019355812}
+  passengerType: 1
+  passenger: {fileID: 1696521053}
   stopPlayerDuringPickup: 1
   stopDuration: 0.9
   controlLossDelay: 0.35
@@ -1912,6 +1920,11 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 11
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1696521053 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 196608523725690406, guid: 1fc31dea4bf07294bbc3dad33ec890cd, type: 3}
+  m_PrefabInstance: {fileID: 2254997069900992865}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1698914063
 GameObject:
   m_ObjectHideFlags: 0
@@ -65344,11 +65357,6 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 3c594ec14bab0344e94775e4b7c83779, type: 3}
---- !u!1 &5740864596019355812 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 4857919718697297307, guid: 3c594ec14bab0344e94775e4b7c83779, type: 3}
-  m_PrefabInstance: {fileID: 5740864596019355811}
-  m_PrefabAsset: {fileID: 0}
 --- !u!33 &5743359091752358624
 MeshFilter:
   m_ObjectHideFlags: 0
