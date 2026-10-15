@@ -4512,8 +4512,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7c81f41c1f6bc01428dc85405c9576f4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  finishPanel: {fileID: 1191924585}
-  finishPanelDelay: 1
+  winPanel: {fileID: 0}
+  losePanel: {fileID: 0}
+  resultPanelDelay: 2
+  winCoinsReward: 100
+  winCoinsText: {fileID: 0}
+  loseCoinsReward: 0
+  loseCoinsText: {fileID: 0}
+  audioSource: {fileID: 0}
+  winAudio: {fileID: 0}
+  loseAudio: {fileID: 0}
+  coinsPlayerPrefsKey: TotalCoins
 --- !u!4 &291377408
 Transform:
   m_ObjectHideFlags: 0
@@ -17986,7 +17995,8 @@ Transform:
   m_LocalPosition: {x: -152.829, y: -0.27999997, z: 3.31}
   m_LocalScale: {x: 3.1144, y: 0.4149185, z: 2.0564}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1600877611}
   m_Father: {fileID: 0}
   m_RootOrder: 7
   m_LocalEulerAnglesHint: {x: 0, y: 3.274, z: 0}
@@ -18003,7 +18013,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   passengerType: 4
-  passenger: {fileID: 0}
+  passenger: {fileID: 1996752256}
   stopPlayerDuringPickup: 1
   stopDuration: 0.9
   controlLossDelay: 0.35
@@ -18571,7 +18581,8 @@ Transform:
   m_LocalPosition: {x: 186.48, y: -0.252, z: 5.36}
   m_LocalScale: {x: 3.1144, y: 0.4149185, z: 2.0564}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1647821132}
   m_Father: {fileID: 0}
   m_RootOrder: 8
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -18590,7 +18601,7 @@ MonoBehaviour:
   passengerPrefabs:
   - passengerName: Skeleton
     prefab: {fileID: 1996752256}
-  passengerNameToDrop: witch
+  passengerNameToDrop: Skeleton
   fallbackSpawnPoint: {fileID: 1284133517}
   spawnPointName: PassengerSpawnPoint
   spawnPointTag: 
@@ -18608,6 +18619,7 @@ MonoBehaviour:
   stopDuration: 0.9
   controlLossDelay: 0.35
   disableAllEffectsOnDrop: 1
+  stopPassengerEffectAudio: 1
   finishNotificationDelay: 0
 --- !u!1 &1293927694
 GameObject:
@@ -23121,13 +23133,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1600877609}
-  m_LocalRotation: {x: -0.5, y: -0.5, z: -0.5, w: 0.5}
-  m_LocalPosition: {x: -152.82, y: -0.391, z: 3.23}
-  m_LocalScale: {x: 0.12197185, y: 0.45739448, z: 0.12197185}
+  m_LocalRotation: {x: -0.4855117, y: -0.51408017, z: -0.51408017, w: 0.4855117}
+  m_LocalPosition: {x: 0.0043481383, y: -0.26752248, z: -0.03858978}
+  m_LocalScale: {x: 0.059213914, y: 0.14702733, z: 0.2939658}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
-  m_RootOrder: 15
+  m_Father: {fileID: 1271638533}
+  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: -90, y: -90, z: 0}
 --- !u!1 &1602467358
 GameObject:
@@ -23994,12 +24006,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1647821130}
   m_LocalRotation: {x: -0.5, y: -0.5, z: -0.5, w: 0.5}
-  m_LocalPosition: {x: 186.57, y: -0.42, z: 5.39}
-  m_LocalScale: {x: 0.12197185, y: 0.45739448, z: 0.12197185}
+  m_LocalPosition: {x: 0.028901746, y: -0.40489873, z: 0.014588471}
+  m_LocalScale: {x: 0.059313286, y: 0.1468644, z: 0.2939658}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
-  m_RootOrder: 16
+  m_Father: {fileID: 1284133517}
+  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: -90, y: -90, z: 0}
 --- !u!1 &1648096481
 GameObject:
@@ -70485,6 +70497,10 @@ MonoBehaviour:
   minWaitTime: 5
   maxWaitTime: 10
   scaleTransitionDuration: 0.75
+  witchSound: {fileID: 0}
+  soundInterval: 10
+  soundVolume: 1
+  playSoundImmediately: 1
 --- !u!114 &5496922818707426388
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -70513,6 +70529,10 @@ MonoBehaviour:
   boneSpawnInterval: 0.15
   addBoxColliders: 1
   boneLifetime: 12
+  skeletonSound: {fileID: 0}
+  soundInterval: 10
+  soundVolume: 1
+  playSoundImmediately: 1
 --- !u!114 &5496922818707426389
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -70547,6 +70567,10 @@ MonoBehaviour:
   groundRayDistance: 20
   groundClearance: 0.05
   recordInterval: 0.02
+  vampireSound: {fileID: 0}
+  soundInterval: 10
+  soundVolume: 1
+  playSoundImmediately: 1
   logCountdown: 1
 --- !u!64 &5496922818710496336
 MeshCollider:

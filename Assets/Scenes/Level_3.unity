@@ -5040,7 +5040,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 16
+  m_RootOrder: 15
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &523410799
 GameObject:
@@ -12885,7 +12885,8 @@ Transform:
   m_LocalPosition: {x: 186.48, y: -0.252, z: 5.36}
   m_LocalScale: {x: 3.1144, y: 0.4149185, z: 2.0564}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1647821132}
   m_Father: {fileID: 0}
   m_RootOrder: 7
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -12904,7 +12905,7 @@ MonoBehaviour:
   passengerPrefabs:
   - passengerName: Witch
     prefab: {fileID: 196608523725690406, guid: 1fc31dea4bf07294bbc3dad33ec890cd, type: 3}
-  passengerNameToDrop: witch
+  passengerNameToDrop: Witch
   fallbackSpawnPoint: {fileID: 1284133517}
   spawnPointName: PassengerSpawnPoint
   spawnPointTag: 
@@ -16970,7 +16971,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_Sprite: {fileID: 21300000, guid: 988447df3029e5849b253cf5b6262ea0, type: 3}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.03137255, g: 1, b: 0.23137255, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -16988,12 +16989,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1647821130}
   m_LocalRotation: {x: -0.5, y: -0.5, z: -0.5, w: 0.5}
-  m_LocalPosition: {x: 186.57, y: -0.42, z: 5.39}
-  m_LocalScale: {x: 0.12197185, y: 0.45739448, z: 0.12197185}
+  m_LocalPosition: {x: 0.028901746, y: -0.40489873, z: 0.014588471}
+  m_LocalScale: {x: 0.059313286, y: 0.1468644, z: 0.2939658}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
-  m_RootOrder: 15
+  m_Father: {fileID: 1284133517}
+  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: -90, y: -90, z: 0}
 --- !u!1 &1651363871
 GameObject:

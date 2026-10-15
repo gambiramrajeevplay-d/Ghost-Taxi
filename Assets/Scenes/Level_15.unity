@@ -28736,7 +28736,7 @@ MonoBehaviour:
   passengerPrefabs:
   - passengerName: Vampire
     prefab: {fileID: 476562651}
-  passengerNameToDrop: witch
+  passengerNameToDrop: Vampire
   fallbackSpawnPoint: {fileID: 1284133517}
   spawnPointName: PassengerSpawnPoint
   spawnPointTag: 
@@ -40390,7 +40390,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1791862918}
   m_LocalRotation: {x: -0.40923846, y: 0.23799354, z: 0.62556505, w: 0.62012213}
-  m_LocalPosition: {x: 0.7191348, y: 8.692, z: 144.12274}
+  m_LocalPosition: {x: 1.03, y: 8.692, z: 144.12}
   m_LocalScale: {x: 1.0412245, y: 1.0412245, z: 1.0412245}
   m_ConstrainProportionsScale: 0
   m_Children: []

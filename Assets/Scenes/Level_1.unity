@@ -1047,8 +1047,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7c81f41c1f6bc01428dc85405c9576f4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  finishPanel: {fileID: 1191924585}
-  finishPanelDelay: 1
+  winPanel: {fileID: 0}
+  losePanel: {fileID: 0}
+  resultPanelDelay: 2
+  winCoinsReward: 100
+  winCoinsText: {fileID: 0}
+  loseCoinsReward: 0
+  loseCoinsText: {fileID: 0}
+  audioSource: {fileID: 0}
+  winAudio: {fileID: 0}
+  loseAudio: {fileID: 0}
+  coinsPlayerPrefsKey: TotalCoins
 --- !u!4 &291377408
 Transform:
   m_ObjectHideFlags: 0
@@ -4286,7 +4295,7 @@ MonoBehaviour:
   passengerPrefabs:
   - passengerName: Ghost
     prefab: {fileID: 6430060387710161464, guid: 1286f3384305bd14cacb4eca452a62ff, type: 3}
-  passengerNameToDrop: witch
+  passengerNameToDrop: Ghost
   fallbackSpawnPoint: {fileID: 1284133517}
   spawnPointName: PassengerSpawnPoint
   spawnPointTag: 
@@ -5248,7 +5257,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 14
+  m_RootOrder: 13
   m_LocalEulerAnglesHint: {x: 0, y: 89.367, z: 0.006}
 --- !u!1 &1618953075
 GameObject:

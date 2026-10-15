@@ -28473,7 +28473,7 @@ MonoBehaviour:
   passengerPrefabs:
   - passengerName: Ghost
     prefab: {fileID: 997851204}
-  passengerNameToDrop: witch
+  passengerNameToDrop: Ghost
   fallbackSpawnPoint: {fileID: 1284133517}
   spawnPointName: PassengerSpawnPoint
   spawnPointTag: 

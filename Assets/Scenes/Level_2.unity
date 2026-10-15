@@ -8260,7 +8260,7 @@ MonoBehaviour:
   passengerPrefabs:
   - passengerName: Skeleton
     prefab: {fileID: 153096263}
-  passengerNameToDrop: witch
+  passengerNameToDrop: Skeleton
   fallbackSpawnPoint: {fileID: 1284133517}
   spawnPointName: PassengerSpawnPoint
   spawnPointTag: 

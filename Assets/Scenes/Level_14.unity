@@ -28123,7 +28123,7 @@ MonoBehaviour:
   passengerPrefabs:
   - passengerName: Witch
     prefab: {fileID: 1702693980}
-  passengerNameToDrop: witch
+  passengerNameToDrop: Witch
   fallbackSpawnPoint: {fileID: 1284133517}
   spawnPointName: PassengerSpawnPoint
   spawnPointTag: 
