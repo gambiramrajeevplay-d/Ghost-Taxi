@@ -2308,8 +2308,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7c81f41c1f6bc01428dc85405c9576f4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  finishPanel: {fileID: 1191924585}
-  finishPanelDelay: 1
+  winPanel: {fileID: 0}
+  losePanel: {fileID: 0}
+  resultPanelDelay: 2
+  winCoinsReward: 100
+  winCoinsText: {fileID: 0}
+  loseCoinsReward: 0
+  loseCoinsText: {fileID: 0}
+  audioSource: {fileID: 0}
+  winAudio: {fileID: 0}
+  loseAudio: {fileID: 0}
+  coinsPlayerPrefsKey: TotalCoins
 --- !u!4 &291377408
 Transform:
   m_ObjectHideFlags: 0
@@ -8269,6 +8278,7 @@ MonoBehaviour:
   stopDuration: 0.9
   controlLossDelay: 0.35
   disableAllEffectsOnDrop: 1
+  stopPassengerEffectAudio: 1
   finishNotificationDelay: 0
 --- !u!1 &1293927694
 GameObject:
@@ -9742,7 +9752,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!65 &1558965849
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -50052,7 +50062,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!1 &5496922818704151574
 GameObject:
   m_ObjectHideFlags: 0
@@ -52771,6 +52781,10 @@ MonoBehaviour:
   minWaitTime: 5
   maxWaitTime: 10
   scaleTransitionDuration: 0.75
+  witchSound: {fileID: 0}
+  soundInterval: 10
+  soundVolume: 1
+  playSoundImmediately: 1
 --- !u!114 &5496922818707426388
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -52799,6 +52813,10 @@ MonoBehaviour:
   boneSpawnInterval: 0.15
   addBoxColliders: 1
   boneLifetime: 12
+  skeletonSound: {fileID: 0}
+  soundInterval: 10
+  soundVolume: 1
+  playSoundImmediately: 1
 --- !u!114 &5496922818707426389
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -52833,6 +52851,10 @@ MonoBehaviour:
   groundRayDistance: 20
   groundClearance: 0.05
   recordInterval: 0.02
+  vampireSound: {fileID: 0}
+  soundInterval: 10
+  soundVolume: 1
+  playSoundImmediately: 1
   logCountdown: 1
 --- !u!64 &5496922818710496336
 MeshCollider:
