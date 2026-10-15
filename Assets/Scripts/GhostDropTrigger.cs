@@ -31,8 +31,7 @@ public class GhostDropTrigger : MonoBehaviour
 
     [Header("Passenger Movement")]
     [SerializeField]
-    private Vector3 movementDirection =
-        new Vector3(0f, 0f, -1f);
+    private Vector3 movementDirection = new Vector3(0f, 0f, -1f);
 
     [SerializeField] private float movementDistance = 10f;
     [SerializeField] private float movementSpeed = 2f;
@@ -50,19 +49,26 @@ public class GhostDropTrigger : MonoBehaviour
     [Header("Smooth Stop")]
     [Tooltip("How long the car takes to slow down to a stop after entering the trigger.")]
     [SerializeField] private float stopDuration = 0.9f;
-    [Tooltip("The player keeps control for this long, then controls are taken away. Must be less than Stop Duration.")]
+
+    [Tooltip("The player keeps control for this long, then controls are taken away.")]
     [SerializeField] private float controlLossDelay = 0.35f;
 
     [Header("Passenger Effects")]
     [SerializeField] private bool disableAllEffectsOnDrop = true;
+
+    [Tooltip("Stop and remove audio objects belonging to passenger effects.")]
+    [SerializeField] private bool stopPassengerEffectAudio = true;
 
     [Header("Finish")]
     [SerializeField] private float finishNotificationDelay = 0f;
 
     private RCC_CarControllerV3 playerCar;
     private Rigidbody playerRigidbody;
+
     private bool dropStarted;
     private bool originalCanControl;
+
+    private Coroutine dropRoutine;
 
     private void OnTriggerEnter(Collider other)
     {
@@ -77,13 +83,14 @@ public class GhostDropTrigger : MonoBehaviour
 
         playerCar = car;
         playerRigidbody = playerCar.GetComponent<Rigidbody>();
+
         dropStarted = true;
         originalCanControl = playerCar.canControl;
 
         if (disableAllEffectsOnDrop)
             DisableAllPassengerEffects();
 
-        StartCoroutine(DropPassenger());
+        dropRoutine = StartCoroutine(DropPassenger());
     }
 
     // =========================================================
@@ -96,7 +103,10 @@ public class GhostDropTrigger : MonoBehaviour
             yield break;
 
         float duration = Mathf.Max(0.01f, stopDuration);
-        float controlDelay = Mathf.Clamp(controlLossDelay, 0f, duration);
+
+        float controlDelay =
+            Mathf.Clamp(controlLossDelay, 0f, duration);
+
         bool controlsRemoved = false;
         float elapsed = 0f;
         float previousRemaining = 1f;
@@ -116,7 +126,6 @@ public class GhostDropTrigger : MonoBehaviour
 
             elapsed += Time.fixedDeltaTime;
 
-            // Take controls away after a short delay instead of instantly.
             if (!controlsRemoved && elapsed >= controlDelay)
             {
                 playerCar.canControl = false;
@@ -124,16 +133,23 @@ public class GhostDropTrigger : MonoBehaviour
             }
 
             float t = Mathf.Clamp01(elapsed / duration);
-            float remaining = 1f - Mathf.SmoothStep(0f, 1f, t);
-            float ratio = previousRemaining > 0.0001f ? remaining / previousRemaining : 0f;
+
+            float remaining =
+                1f - Mathf.SmoothStep(0f, 1f, t);
+
+            float ratio = previousRemaining > 0.0001f
+                ? remaining / previousRemaining
+                : 0f;
+
             previousRemaining = remaining;
 
             if (playerRigidbody != null)
             {
-                // Scale the CURRENT velocity so steering/coasting still looks natural.
-                // Vertical speed is untouched so gravity and bumps stay normal.
                 Vector3 v = playerRigidbody.velocity;
-                playerRigidbody.velocity = new Vector3(v.x * ratio, v.y, v.z * ratio);
+
+                playerRigidbody.velocity =
+                    new Vector3(v.x * ratio, v.y, v.z * ratio);
+
                 playerRigidbody.angularVelocity *= ratio;
             }
         }
@@ -144,13 +160,16 @@ public class GhostDropTrigger : MonoBehaviour
         if (playerRigidbody != null)
         {
             Vector3 v = playerRigidbody.velocity;
-            playerRigidbody.velocity = new Vector3(0f, v.y, 0f);
+
+            playerRigidbody.velocity =
+                new Vector3(0f, v.y, 0f);
+
             playerRigidbody.angularVelocity = Vector3.zero;
         }
     }
 
     // =========================================================
-    // DISABLE PASSENGER EFFECTS
+    // DISABLE PASSENGER EFFECTS AND AUDIO
     // =========================================================
 
     private void DisableAllPassengerEffects()
@@ -158,12 +177,14 @@ public class GhostDropTrigger : MonoBehaviour
         if (playerCar == null)
             return;
 
+        // Ghost effect.
         GhostCarEffect ghost =
             playerCar.GetComponentInChildren<GhostCarEffect>(true);
 
         if (ghost != null)
             ghost.DeactivateGhostEffect();
 
+        // Remove any remaining orbiting ghost clones.
         GhostOrbit[] orbitGhosts =
             playerCar.GetComponentsInChildren<GhostOrbit>(true);
 
@@ -173,23 +194,59 @@ public class GhostDropTrigger : MonoBehaviour
                 Destroy(orbit.gameObject);
         }
 
+        // Witch effect.
         WitchCarEffect witch =
             playerCar.GetComponentInChildren<WitchCarEffect>(true);
 
         if (witch != null)
             witch.DeactivateWitchEffect();
 
+        // Vampire effect.
         VampireTeleportEffect vampire =
             playerCar.GetComponentInChildren<VampireTeleportEffect>(true);
 
         if (vampire != null)
             vampire.DeactivateVampireEffect();
 
+        // Skeleton effect.
         SkeletonCarEffect skeleton =
             playerCar.GetComponentInChildren<SkeletonCarEffect>(true);
 
         if (skeleton != null)
             skeleton.DeactivateSkeletonEffect();
+
+        // Explicitly stop any dedicated effect audio still present.
+        if (stopPassengerEffectAudio)
+            StopPassengerEffectAudio();
+    }
+
+    private void StopPassengerEffectAudio()
+    {
+        if (playerCar == null)
+            return;
+
+        AudioSource[] audioSources =
+            playerCar.GetComponentsInChildren<AudioSource>(true);
+
+        foreach (AudioSource source in audioSources)
+        {
+            if (source == null)
+                continue;
+
+            string objectName = source.gameObject.name;
+
+            bool isPassengerEffectAudio =
+                objectName == "GhostEffectAudio" ||
+                objectName == "WitchEffectAudio" ||
+                objectName == "VampireEffectAudio" ||
+                objectName == "SkeletonEffectAudio";
+
+            if (!isPassengerEffectAudio)
+                continue;
+
+            source.Stop();
+            Destroy(source.gameObject);
+        }
     }
 
     // =========================================================
@@ -198,11 +255,14 @@ public class GhostDropTrigger : MonoBehaviour
 
     private IEnumerator DropPassenger()
     {
-        // Slow the car down smoothly before the passenger is dropped.
         if (stopPlayerDuringDrop)
             yield return SmoothStopPlayer();
 
-        GameObject prefab = FindPrefabContaining(passengerNameToDrop);
+        if (playerCar == null)
+            yield break;
+
+        GameObject prefab =
+            FindPrefabContaining(passengerNameToDrop);
 
         if (prefab == null)
             prefab = FindFirstValidPrefab();
@@ -211,7 +271,8 @@ public class GhostDropTrigger : MonoBehaviour
         {
             Debug.LogWarning(
                 "GhostDropTrigger: No valid passenger prefab assigned.",
-                this);
+                this
+            );
 
             yield return ResumeControls();
             yield break;
@@ -239,11 +300,13 @@ public class GhostDropTrigger : MonoBehaviour
         GameObject spawned = Instantiate(
             prefab,
             spawnPosition,
-            initialRotation);
+            initialRotation
+        );
 
-        Vector3 direction = movementDirection.sqrMagnitude > 0.0001f
-            ? movementDirection.normalized
-            : Vector3.back;
+        Vector3 direction =
+            movementDirection.sqrMagnitude > 0.0001f
+                ? movementDirection.normalized
+                : Vector3.back;
 
         if (keepUpright)
         {
@@ -255,9 +318,7 @@ public class GhostDropTrigger : MonoBehaviour
             direction.Normalize();
         }
 
-        // IMPORTANT:
-        // If this prefab has WitchMovement, that script handles
-        // movement, walking animation and ground detection.
+        // WitchMovement handles walking, animation and ground detection.
         WitchMovement witchMovement =
             spawned.GetComponentInChildren<WitchMovement>(true);
 
@@ -266,7 +327,8 @@ public class GhostDropTrigger : MonoBehaviour
             witchMovement.StartWalkingAway(
                 direction,
                 movementDistance,
-                movementSpeed);
+                movementSpeed
+            );
 
             while (spawned != null &&
                    witchMovement != null &&
@@ -277,11 +339,11 @@ public class GhostDropTrigger : MonoBehaviour
         }
         else
         {
-            // Original movement for other passenger prefabs.
             yield return MovePassengerNormally(
                 spawned,
                 direction,
-                initialRotation);
+                initialRotation
+            );
         }
 
         if (spawned != null)
@@ -298,10 +360,13 @@ public class GhostDropTrigger : MonoBehaviour
         {
             Debug.LogWarning(
                 "GhostDropTrigger: GameManager instance not found.",
-                this);
+                this
+            );
         }
 
         yield return ResumeControls();
+
+        dropRoutine = null;
     }
 
     // =========================================================
@@ -336,8 +401,8 @@ public class GhostDropTrigger : MonoBehaviour
                 targetRotation =
                     Quaternion.LookRotation(
                         lookDirection.normalized,
-                        Vector3.up) *
-                    Quaternion.Euler(movementRotationOffset);
+                        Vector3.up
+                    ) * Quaternion.Euler(movementRotationOffset);
 
                 hasTargetRotation = true;
             }
@@ -353,7 +418,8 @@ public class GhostDropTrigger : MonoBehaviour
             spawned.transform.position = Vector3.MoveTowards(
                 spawned.transform.position,
                 targetPosition,
-                speed * Time.deltaTime);
+                speed * Time.deltaTime
+            );
 
             if (hasTargetRotation)
             {
@@ -363,7 +429,8 @@ public class GhostDropTrigger : MonoBehaviour
                         : Quaternion.RotateTowards(
                             spawned.transform.rotation,
                             targetRotation,
-                            rotationSpeed * Time.deltaTime);
+                            rotationSpeed * Time.deltaTime
+                        );
             }
 
             yield return null;
@@ -392,9 +459,10 @@ public class GhostDropTrigger : MonoBehaviour
             if (entry == null || entry.prefab == null)
                 continue;
 
-            string entryName = string.IsNullOrWhiteSpace(entry.passengerName)
-                ? entry.prefab.name
-                : entry.passengerName;
+            string entryName =
+                string.IsNullOrWhiteSpace(entry.passengerName)
+                    ? entry.prefab.name
+                    : entry.passengerName;
 
             if (entryName.IndexOf(
                     searchText,
@@ -471,9 +539,26 @@ public class GhostDropTrigger : MonoBehaviour
             playerCar.canControl = originalCanControl;
     }
 
+    // =========================================================
+    // CLEANUP
+    // =========================================================
+
     private void OnDisable()
     {
+        // If this trigger is disabled during a drop, stop its coroutine
+        // and restore the player's controls.
+        if (dropRoutine != null)
+        {
+            StopCoroutine(dropRoutine);
+            dropRoutine = null;
+        }
+
         if (dropStarted && playerCar != null)
+        {
+            if (disableAllEffectsOnDrop)
+                DisableAllPassengerEffects();
+
             playerCar.canControl = originalCanControl;
+        }
     }
 }
