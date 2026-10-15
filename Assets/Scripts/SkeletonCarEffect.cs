@@ -20,12 +20,10 @@ public class SkeletonCarEffect : MonoBehaviour
 
     [Header("Spawn Position")]
     [SerializeField]
-    private Vector3 carSpawnOffset =
-        new Vector3(0f, 0.5f, 0f);
+    private Vector3 carSpawnOffset = new Vector3(0f, 0.5f, 0f);
 
     [SerializeField]
-    private Vector3 spawnSpread =
-        new Vector3(0.8f, 0.4f, 1.2f);
+    private Vector3 spawnSpread = new Vector3(0.8f, 0.4f, 1.2f);
 
     [Header("Bone Physics")]
     [SerializeField] private float boneMass = 0.2f;
@@ -43,6 +41,22 @@ public class SkeletonCarEffect : MonoBehaviour
 
     [Header("Cleanup")]
     [SerializeField] private float boneLifetime = 12f;
+
+    [Header("Skeleton Audio")]
+    [Tooltip("Sound played when the skeleton passenger is picked up.")]
+    [SerializeField] private AudioClip skeletonSound;
+
+    [Tooltip("Seconds between sound plays.")]
+    [SerializeField] private float soundInterval = 10f;
+
+    [Range(0f, 1f)]
+    [SerializeField] private float soundVolume = 1f;
+
+    [Tooltip("Play the sound immediately when the effect activates.")]
+    [SerializeField] private bool playSoundImmediately = true;
+
+    private AudioSource skeletonAudioSource;
+    private float nextSoundTime;
 
     private RCC_CarControllerV3 playerCar;
 
@@ -84,12 +98,86 @@ public class SkeletonCarEffect : MonoBehaviour
             return;
         }
 
+        if (passengerPickedUp)
+            return;
+
         passengerPickedUp = true;
         nextAllowedHitTime = 0f;
+
+        SetupAudioSource();
+
+        if (playSoundImmediately)
+        {
+            PlaySkeletonSound();
+        }
+
+        nextSoundTime = Time.time +
+            Mathf.Max(0.1f, soundInterval);
 
         Debug.Log(
             "Skeleton passenger picked up. Waiting for obstacle collisions."
         );
+    }
+
+    private void SetupAudioSource()
+    {
+        if (skeletonAudioSource != null)
+            return;
+
+        Transform audioParent = playerCar != null
+            ? playerCar.transform
+            : transform;
+
+        GameObject audioObject =
+            new GameObject("SkeletonEffectAudio");
+
+        audioObject.transform.SetParent(audioParent, false);
+
+        skeletonAudioSource =
+            audioObject.AddComponent<AudioSource>();
+
+        skeletonAudioSource.playOnAwake = false;
+        skeletonAudioSource.loop = false;
+
+        // 2D audio, consistent with the ghost and witch effects.
+        skeletonAudioSource.spatialBlend = 0f;
+        skeletonAudioSource.volume = soundVolume;
+    }
+
+    private void Update()
+    {
+        if (!passengerPickedUp || skeletonSound == null)
+            return;
+
+        if (skeletonAudioSource == null)
+            SetupAudioSource();
+
+        if (Time.time >= nextSoundTime)
+        {
+            PlaySkeletonSound();
+
+            nextSoundTime = Time.time +
+                Mathf.Max(0.1f, soundInterval);
+        }
+    }
+
+    private void PlaySkeletonSound()
+    {
+        if (skeletonSound == null)
+            return;
+
+        if (skeletonAudioSource == null)
+            SetupAudioSource();
+
+        if (skeletonAudioSource != null)
+        {
+            skeletonAudioSource.volume = soundVolume;
+
+            skeletonAudioSource.PlayOneShot(
+                skeletonSound,
+                soundVolume
+            );
+        }
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -147,24 +235,31 @@ public class SkeletonCarEffect : MonoBehaviour
 
         List<Transform> boneObjects = new List<Transform>();
 
-        for (int i = 0; i < skeletonInstance.transform.childCount; i++)
+        for (int i = 0;
+             i < skeletonInstance.transform.childCount;
+             i++)
         {
-            Transform child = skeletonInstance.transform.GetChild(i);
+            Transform child =
+                skeletonInstance.transform.GetChild(i);
+
             CollectBoneObjects(child, boneObjects);
         }
 
         if (boneObjects.Count == 0)
         {
             Debug.LogWarning(
-                "No bone child GameObjects found. Make sure the breakable skeleton prefab has separate child objects.",
+                "No bone child GameObjects found. Make sure the " +
+                "breakable skeleton prefab has separate child objects.",
                 skeletonInstance
             );
 
+            spawnedObjects.Remove(skeletonInstance);
             Destroy(skeletonInstance);
             yield break;
         }
 
-        List<Renderer[]> boneRenderers = new List<Renderer[]>();
+        List<Renderer[]> boneRenderers =
+            new List<Renderer[]>();
 
         foreach (Transform bone in boneObjects)
         {
@@ -210,7 +305,8 @@ public class SkeletonCarEffect : MonoBehaviour
             if (addBoxColliders &&
                 bone.GetComponent<Collider>() == null)
             {
-                BoxCollider box = bone.gameObject.AddComponent<BoxCollider>();
+                BoxCollider box =
+                    bone.gameObject.AddComponent<BoxCollider>();
 
                 Renderer renderer =
                     bone.GetComponentInChildren<Renderer>();
@@ -276,7 +372,10 @@ public class SkeletonCarEffect : MonoBehaviour
         }
 
         if (skeletonInstance != null)
+        {
+            spawnedObjects.Remove(skeletonInstance);
             Destroy(skeletonInstance);
+        }
     }
 
     private void CollectBoneObjects(
@@ -308,12 +407,14 @@ public class SkeletonCarEffect : MonoBehaviour
     private void OnDisable()
     {
         passengerPickedUp = false;
+
+        StopAllCoroutines();
         runningEffects.Clear();
+
+        DestroySpawnedObjects();
+        StopAndDestroyAudio();
     }
 
-    /// <summary>
-    /// Stops the effect, cancels in-progress bone spawning and removes all spawned bones.
-    /// </summary>
     public void DeactivateSkeletonEffect()
     {
         passengerPickedUp = false;
@@ -322,5 +423,23 @@ public class SkeletonCarEffect : MonoBehaviour
         runningEffects.Clear();
 
         DestroySpawnedObjects();
+        StopAndDestroyAudio();
+
+        nextSoundTime = 0f;
+    }
+
+    private void StopAndDestroyAudio()
+    {
+        if (skeletonAudioSource == null)
+            return;
+
+        skeletonAudioSource.Stop();
+        Destroy(skeletonAudioSource.gameObject);
+        skeletonAudioSource = null;
+    }
+
+    private void OnDestroy()
+    {
+        StopAndDestroyAudio();
     }
 }
