@@ -26811,7 +26811,7 @@ MonoBehaviour:
   passengerPrefabs:
   - passengerName: Vampire
     prefab: {fileID: 476562651}
-  passengerNameToDrop: witch
+  passengerNameToDrop: Vampire
   fallbackSpawnPoint: {fileID: 1284133517}
   spawnPointName: PassengerSpawnPoint
   spawnPointTag: 

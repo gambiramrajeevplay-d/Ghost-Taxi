@@ -1,0 +1,61 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8423698866083165175
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8423698866083165172}
+  - component: {fileID: 8423698866083165173}
+  m_Layer: 0
+  m_Name: Level
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8423698866083165172
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8423698866083165175}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 621.0395, y: 300.30978, z: 0.0074082837}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8423698866083165173
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8423698866083165175}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6219beb57d7d4e448b831eb14eae7369, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  instructionPanel: {fileID: 0}
+  instructionText: {fileID: 0}
+  playerCar: {fileID: 0}
+  displayDuration: 10
+  typingSpeed: 0.04
+  useUnscaledTime: 1
+  ghostInstruction: Pick up the ghost and deliver it to its destination. Follow the
+    arrow, and don't drive like a phantom
+  witchInstruction: Pick up the witch and take her to the drop-off point. Careful!
+    Her broom isn't your backup ride!
+  vampireInstruction: "Collect the vampire and deliver him safely. No sudden turns\u2014he
+    likes his coffin-sized comfort!"
+  zombieInstruction: 
+  skeletonInstruction: Pick up the skeleton and deliver it safely. Avoid bumpy roads
+    he's got enough loose bones already
