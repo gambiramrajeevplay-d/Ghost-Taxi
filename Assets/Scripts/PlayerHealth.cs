@@ -1,19 +1,13 @@
 using UnityEngine;
-using TMPro;
+using UnityEngine.UI;
 
-/// <summary>
-/// Put this on the player car root (the RCC car object).
-/// Tracks HP, shows it in a TextMeshPro text, and fires an event on death.
-/// </summary>
 public class PlayerHealth : MonoBehaviour
 {
     [Header("Health")]
     [SerializeField] private float maxHealth = 100f;
 
-    [Header("UI")]
-    [Tooltip("Drag a TextMeshPro - Text (UI) object here.")]
-    [SerializeField] private TMP_Text hpText;
-    [SerializeField] private string format = "HP: {0}";
+    [Header("Health Fill")]
+    [SerializeField] private Image healthFill;
 
     [Header("Events")]
     public UnityEngine.Events.UnityEvent onDeath;
@@ -24,8 +18,32 @@ public class PlayerHealth : MonoBehaviour
 
     private void Awake()
     {
-        CurrentHealth = maxHealth;
-        UpdateUI();
+        CurrentHealth = Mathf.Max(0f, maxHealth);
+        IsDead = CurrentHealth <= 0f;
+
+        FindHealthFill();
+        UpdateHealthFill();
+    }
+
+    private void Update()
+    {
+        // Supports UI that is spawned after the player.
+        if (healthFill == null)
+        {
+            FindHealthFill();
+
+            if (healthFill != null)
+                UpdateHealthFill();
+        }
+    }
+
+    private void FindHealthFill()
+    {
+        GameObject healthObject =
+            GameObject.FindGameObjectWithTag("HealthFill");
+
+        if (healthObject != null)
+            healthFill = healthObject.GetComponent<Image>();
     }
 
     public void TakeDamage(float amount)
@@ -34,12 +52,20 @@ public class PlayerHealth : MonoBehaviour
             return;
 
         CurrentHealth = Mathf.Max(0f, CurrentHealth - amount);
-        UpdateUI();
+
+        UpdateHealthFill();
+
+        Debug.Log(
+            $"Player health: {CurrentHealth:0.0}/{maxHealth:0.0}"
+        );
 
         if (CurrentHealth <= 0f)
         {
             IsDead = true;
-            Debug.Log("Player died.");
+
+            if (GameManager.Instance != null)
+                GameManager.Instance.LoseGame();
+
             onDeath?.Invoke();
         }
     }
@@ -50,12 +76,17 @@ public class PlayerHealth : MonoBehaviour
             return;
 
         CurrentHealth = Mathf.Min(maxHealth, CurrentHealth + amount);
-        UpdateUI();
+
+        UpdateHealthFill();
     }
 
-    private void UpdateUI()
+    private void UpdateHealthFill()
     {
-        if (hpText != null)
-            hpText.text = string.Format(format, Mathf.CeilToInt(CurrentHealth));
+        if (healthFill == null)
+            return;
+
+        healthFill.fillAmount = maxHealth > 0f
+            ? Mathf.Clamp01(CurrentHealth / maxHealth)
+            : 0f;
     }
 }

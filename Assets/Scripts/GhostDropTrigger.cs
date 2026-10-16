@@ -21,6 +21,10 @@ public class GhostDropTrigger : MonoBehaviour
 
     [SerializeField] private Transform fallbackSpawnPoint;
 
+    [Header("Arrow")]
+    [Tooltip("Arrow marking the drop point. Shown when this trigger is turned on, turned OFF when the player enters.")]
+    [SerializeField] private GameObject arrow;
+
     [Header("Player Car Spawn Point Search")]
     [SerializeField] private string spawnPointName = "PassengerSpawnPoint";
     [SerializeField] private string spawnPointTag = "";
@@ -70,6 +74,14 @@ public class GhostDropTrigger : MonoBehaviour
 
     private Coroutine dropRoutine;
 
+    private void OnEnable()
+    {
+        // The pickup script turns this trigger on after the passenger is picked up.
+        // Show the arrow at that moment (unless the drop already happened).
+        if (!dropStarted && arrow != null)
+            arrow.SetActive(true);
+    }
+
     private void OnTriggerEnter(Collider other)
     {
         if (dropStarted)
@@ -87,10 +99,32 @@ public class GhostDropTrigger : MonoBehaviour
         dropStarted = true;
         originalCanControl = playerCar.canControl;
 
+        // Hide the drop-point arrow.
+        HideArrow();
+
+        // Activate the cinematic camera immediately on entering the trigger.
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ActivateCinematicCamera(playerCar);
+        }
+
+        if (disableAllEffectsOnDrop)
+        {
+            DisableAllPassengerEffects();
+        }
+
+        dropRoutine = StartCoroutine(DropPassenger());
+
         if (disableAllEffectsOnDrop)
             DisableAllPassengerEffects();
 
         dropRoutine = StartCoroutine(DropPassenger());
+    }
+
+    private void HideArrow()
+    {
+        if (arrow != null)
+            arrow.SetActive(false);
     }
 
     // =========================================================
@@ -354,7 +388,8 @@ public class GhostDropTrigger : MonoBehaviour
 
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.PassengerDropped();
+            // Start the cinematic and pass the player's car to GameManager.
+            GameManager.Instance.PassengerDropped(playerCar);
         }
         else
         {

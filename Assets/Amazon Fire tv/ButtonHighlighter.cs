@@ -1,16 +1,19 @@
-﻿using System.Collections;
+﻿using Script;
+using System.Collections;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.UI;
 using UnityEngine.SceneManagement;
-using Script;
+using UnityEngine.UI;
 public class ButtonHighlighter : MonoBehaviour
 {
     private Button previousButton;
     [SerializeField] private float scaleAmount = 1f;
     public GameObject defaultButton;
     public GameObject singleplaybtn;
+    [SerializeField] Button[] levels;
+    [SerializeField] bool levelSelection;
     private void Awake()
     {
         if (!AndroidTV.IsAndroidOrFireTv())
@@ -23,6 +26,11 @@ public class ButtonHighlighter : MonoBehaviour
         if (defaultButton != null)
         {
             EventSystem.current.SetSelectedGameObject(defaultButton);
+        }
+
+        if (levelSelection)
+        {
+            EventSystem.current.SetSelectedGameObject(levels[PlayerPrefs.GetInt("currentHighlighter")].gameObject);
         }
     }
     private void OnEnable()
@@ -55,6 +63,29 @@ public class ButtonHighlighter : MonoBehaviour
             UnHighlightButton(previousButton);
         }
         previousButton = selectedAsButton;
+        if (selectedAsButton == null)
+        {
+            Debug.LogWarning(
+                "ButtonHighlighter: selectedAsButton is not assigned.",
+                this);
+            return;
+        }
+
+        if (ContentMove.instance == null)
+        {
+            Debug.LogWarning(
+                "ButtonHighlighter: ContentMove.instance is null. " +
+                "Check that a ContentMove component exists and initializes its instance.",
+                this);
+            return;
+        }
+
+        ContentMove.instance.SelectedObj = selectedAsButton.gameObject;
+
+        if (levelSelection)
+        {
+            ContentMove.instance.Content_move();
+        }
     }
     public static GameObject FindGameObjectInChildWithTag(GameObject parent, string tag)
     {

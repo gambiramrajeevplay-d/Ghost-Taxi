@@ -1,8 +1,10 @@
+using Script;
 using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+[RequireComponent(typeof(AudioSource))]
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
@@ -21,6 +23,10 @@ public class GameManager : MonoBehaviour
     [Header("Lose Reward")]
     [SerializeField] private int loseCoinsReward = 0;
     [SerializeField] private TMP_Text loseCoinsText;
+
+    [Header("Cinematic Camera")]
+    [SerializeField] private RCC_Camera rccCamera;
+    [SerializeField] private bool playCinematicOnWin = true;
 
     [Header("Audio")]
     [SerializeField] private AudioSource audioSource;
@@ -45,58 +51,115 @@ public class GameManager : MonoBehaviour
 
         Instance = this;
 
+        if (audioSource == null)
+            audioSource = GetComponent<AudioSource>();
+
+        if (audioSource == null)
+            audioSource = gameObject.AddComponent<AudioSource>();
+
+        audioSource.playOnAwake = false;
+
+        if (rccCamera == null)
+            rccCamera = FindObjectOfType<RCC_Camera>();
+
         if (winPanel != null)
             winPanel.SetActive(false);
 
         if (losePanel != null)
             losePanel.SetActive(false);
-
-        if (audioSource == null)
-            audioSource = GetComponent<AudioSource>();
     }
 
-    // Call this when the passenger finishes dropping.
+    // Called when the passenger has been dropped off.
     public void PassengerDropped()
     {
+        PassengerDropped(null);
+    }
+
+    // Pass the player's car to ensure the RCC camera follows it.
+    public void PassengerDropped(RCC_CarControllerV3 playerCar)
+    {
+        if (resultStarted)
+            return;
+
+        PlayWinCinematic(playerCar);
+
         WinGame();
     }
 
-    // Call this when the player wins.
+   public void ActivateCinematicCamera(RCC_CarControllerV3 playerCar)
+{
+    if (!playCinematicOnWin)
+        return;
+
+    if (rccCamera == null)
+        rccCamera = FindObjectOfType<RCC_Camera>();
+
+    if (rccCamera == null)
+    {
+        Debug.LogWarning("GameManager: RCC_Camera was not found.", this);
+        return;
+    }
+
+    if (playerCar != null)
+    {
+        rccCamera.SetTarget(playerCar.gameObject);
+    }
+
+    rccCamera.ChangeCamera(RCC_Camera.CameraMode.CINEMATIC);
+}
+
     public void WinGame()
     {
         if (resultStarted)
             return;
 
         resultStarted = true;
-
         Time.timeScale = 1f;
 
+        // Award coins.
         GiveCoins(winCoinsReward);
         UpdateCoinsText(winCoinsText, winCoinsReward);
 
+        // Unlock the next level and save progress.
+        UnlockNextLevel();
+
+        // Play win audio.
         PlayResultAudio(winAudio);
 
+        // Show the win panel after the cinematic delay.
         StartCoroutine(ShowResultPanel(winPanel));
     }
 
-    // Call this when the player loses.
     public void LoseGame()
     {
         if (resultStarted)
             return;
 
         resultStarted = true;
-
         Time.timeScale = 1f;
 
         if (loseCoinsReward > 0)
             GiveCoins(loseCoinsReward);
 
         UpdateCoinsText(loseCoinsText, loseCoinsReward);
-
         PlayResultAudio(loseAudio);
 
         StartCoroutine(ShowResultPanel(losePanel));
+    }
+
+    private void UnlockNextLevel()
+    {
+        int currentLevel =
+            PlayerPrefs.GetInt(StringsData.playerLevel, 1);
+
+        int nextLevel = currentLevel + 1;
+
+        PlayerPrefs.SetInt(StringsData.playerLevel, nextLevel);
+        PlayerPrefs.Save();
+
+        Debug.Log(
+            $"GameManager: Level {currentLevel} completed. " +
+            $"Level {nextLevel} is now unlocked.");
     }
 
     private IEnumerator ShowResultPanel(GameObject panel)
@@ -120,41 +183,81 @@ public class GameManager : MonoBehaviour
         if (amount <= 0)
             return;
 
-        int currentCoins = PlayerPrefs.GetInt(
-            coinsPlayerPrefsKey, 0);
+        // Prefer the currency manager so its cached value and UI
+        // stay synchronized.
+        if (CurrecnyManager.instance != null)
+        {
+            CurrecnyManager.instance.AddCurrency(amount);
+        }
+        else
+        {
+            int currentCoins = PlayerPrefs.GetInt(
+                coinsPlayerPrefsKey, 0);
 
-        PlayerPrefs.SetInt(
-            coinsPlayerPrefsKey, currentCoins + amount);
+            PlayerPrefs.SetInt(
+                coinsPlayerPrefsKey, currentCoins + amount);
 
-        PlayerPrefs.Save();
+            PlayerPrefs.Save();
+        }
     }
 
     private void UpdateCoinsText(TMP_Text coinsText, int amount)
     {
         if (coinsText != null)
-        {
-            coinsText.text = "+" + amount + " Coins";
-        }
+            coinsText.text = amount.ToString();
     }
 
     private void PlayResultAudio(AudioClip clip)
     {
-        if (audioSource != null && clip != null)
-        {
-            audioSource.PlayOneShot(clip);
-        }
+        if (audioSource == null || clip == null)
+            return;
+
+        audioSource.PlayOneShot(clip);
     }
 
-    // Connect this method to your result panel's button.
     public void LoadLevelSelection()
     {
         if (isLoadingScene)
             return;
 
         isLoadingScene = true;
-
         Time.timeScale = 1f;
+
         SceneManager.LoadScene("Level_Selection");
     }
+    private void PlayWinCinematic(RCC_CarControllerV3 playerCar)
+    {
+        if (rccCamera == null)
+            rccCamera = FindObjectOfType<RCC_Camera>();
 
+        if (rccCamera == null)
+        {
+            Debug.LogWarning(
+                "GameManager: RCC_Camera was not found.", this);
+            return;
+        }
+
+        // RCC's cinematic mode requires its cinematic camera component.
+        RCC_CinematicCamera cinematicCamera =
+            FindObjectOfType<RCC_CinematicCamera>();
+
+        if (cinematicCamera == null)
+        {
+            Debug.LogWarning(
+                "GameManager: RCC_CinematicCamera was not found. " +
+                "Check that the RCC cinematic camera is configured.",
+                this);
+            return;
+        }
+
+        if (playerCar != null)
+            rccCamera.SetTarget(playerCar.gameObject);
+
+        rccCamera.ChangeCamera(RCC_Camera.CameraMode.CINEMATIC);
+    }
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
 }
