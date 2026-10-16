@@ -912,7 +912,7 @@ MonoBehaviour:
   moveSpeed: 9
   turnSpeed: 8
   rotationOffset: 0
-  attackCooldown: 1.2
+  attackCooldown: 2
   damageWindow: 0.8
   lifeTime: 10
   startTimerOnDetection: 1
@@ -1480,7 +1480,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   monster: {fileID: 5018923869022822582}
-  damage: 2
+  damage: 0.2
 --- !u!1 &8104733446842647369
 GameObject:
   m_ObjectHideFlags: 0

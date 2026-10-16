@@ -7,305 +7,379 @@
 //
 //----------------------------------------------
 
+
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections;
-
+using Script;
 /// <summary>
 /// Receiving inputs from UI buttons, and feeds active vehicles on your scene.
 /// </summary>
 [AddComponentMenu("BoneCracker Games/Realistic Car Controller/UI/Mobile/RCC UI Mobile Buttons")]
-public class RCC_MobileButtons : MonoBehaviour {
-
-	// Getting an Instance of Main Shared RCC Settings.
-	#region RCC Settings Instance
-
-	private RCC_Settings RCCSettingsInstance;
-	private RCC_Settings RCCSettings {
-		get {
-			if (RCCSettingsInstance == null) {
-				RCCSettingsInstance = RCC_Settings.Instance;
-				return RCCSettingsInstance;
-			}
-			return RCCSettingsInstance;
-		}
-	}
-
-	#endregion
-
-	public RCC_UIController gasButton;
-	public RCC_UIController gradualGasButton;
-	public RCC_UIController brakeButton;
-	public RCC_UIController leftButton;
-	public RCC_UIController rightButton;
-	public RCC_UISteeringWheelController steeringWheel;
-	public RCC_UIController handbrakeButton;
-	public RCC_UIController NOSButton;
-	public RCC_UIController NOSButtonSteeringWheel;
-	public GameObject gearButton;
-	public RCC_UIJoystick joystick;
-
-	private float gasInput = 0f;
-	private float brakeInput = 0f;
-	private float leftInput = 0f;
-	private float rightInput = 0f;
-	private float steeringWheelInput = 0f;
-	private float handbrakeInput = 0f;
-	private float NOSInput = 1f;
-	private float gyroInput = 0f;
-	private float joystickInput = 0f;
-	private bool canUseNos = false;
-
-	private Vector3 orgBrakeButtonPos;
-
-	void Start(){
-
-		if(brakeButton)
-			orgBrakeButtonPos = brakeButton.transform.position;
-
-		CheckController ();
-
-	}
-
-	void OnEnable(){
-
-		RCC_SceneManager.OnMainControllerChanged += CheckController;
-		RCC_SceneManager.OnVehicleChanged += CheckController;
+public class RCC_MobileButtons : MonoBehaviour
+{
+
+    // Getting an Instance of Main Shared RCC Settings.
+    #region RCC Settings Instance
+
+    private RCC_Settings RCCSettingsInstance;
+    private RCC_Settings RCCSettings
+    {
+        get
+        {
+            if (RCCSettingsInstance == null)
+            {
+                RCCSettingsInstance = RCC_Settings.Instance;
+                return RCCSettingsInstance;
+            }
+            return RCCSettingsInstance;
+        }
+    }
+
+    #endregion
+
+    public RCC_UIController gasButton;
+    public RCC_UIController gradualGasButton;
+    public RCC_UIController brakeButton;
+    public RCC_UIController leftButton;
+    public RCC_UIController rightButton;
+    public RCC_UISteeringWheelController steeringWheel;
+    public RCC_UIController handbrakeButton;
+    public RCC_UIController NOSButton;
+    public RCC_UIController NOSButtonSteeringWheel;
+    public GameObject gearButton;
+    public RCC_UIJoystick joystick;
+
+    private float gasInput = 0f;
+    private float brakeInput = 0f;
+    private float leftInput = 0f;
+    private float rightInput = 0f;
+    private float steeringWheelInput = 0f;
+    private float handbrakeInput = 0f;
+    private float NOSInput = 1f;
+    private float gyroInput = 0f;
+    private float joystickInput = 0f;
+    private bool canUseNos = false;
+
+    private Vector3 orgBrakeButtonPos;
+    public enum ControlMode
+    {
+        TV,
+        Tab,
+        Both
+    }
+    public ControlMode controlMode;
+    void Start()
+    {
+
+        if (brakeButton)
+            orgBrakeButtonPos = brakeButton.transform.position;
+
+        CheckController();
+
+    }
+
+    void OnEnable()
+    {
+        RCC_SceneManager.OnMainControllerChanged += CheckController;
+        RCC_SceneManager.OnVehicleChanged += CheckController;
+    }
+
+    //private void CheckController(){
+
+    //	if (!RCC_SceneManager.Instance.activePlayerVehicle)
+    //		return;
+
+
+    //	if (Application.isEditor)
+    //	{
+    //		RCCSettings.controllerType = RCC_Settings.ControllerType.Keyboard;
+    //	}
+    //	if (RCCSettings.controllerType == RCC_Settings.ControllerType.Mobile) {
+
+    //		EnableButtons ();
+    //		return;
+
+    //	} 
+
+    //	else
+    //	{
+
+    //		DisableButtons ();
+    //		return;
+
+    //	}
+
+    //}
+    private void CheckController()
+    {
+        if (!RCC_SceneManager.Instance.activePlayerVehicle)
+            return;
+
+        switch (controlMode)
+        {
+            case ControlMode.TV:
+
+                // Keyboard only
+                RCCSettings.controllerType = RCC_Settings.ControllerType.Keyboard;
+                DisableButtons();
+                Debug.Log(":video_game: Mode: TV (Keyboard Only)");
+                break;
+
+            case ControlMode.Tab:
+
+                // Mobile only
+                RCCSettings.controllerType = RCC_Settings.ControllerType.Mobile;
+                EnableButtons();
+                Debug.Log(":iphone: Mode: Tab (Mobile Only)");
+                break;
+
+            case ControlMode.Both:
+
+                if (AndroidTV.IsAndroidOrFireTv())
+                {
+                    // Running on TV → use Keyboard
+                    RCCSettings.controllerType = RCC_Settings.ControllerType.Keyboard;
+                    DisableButtons();
+                    Debug.Log(":arrows_counterclockwise: BOTH Mode → TV detected (Keyboard)");
+                }
+                else
+                {
+                    // Running on Tablet / Phone → use Mobile
+                    RCCSettings.controllerType = RCC_Settings.ControllerType.Mobile;
+                    EnableButtons();
+                    Debug.Log(":arrows_counterclockwise: BOTH Mode → Tab detected (Mobile)");
+                }
+                break;
+        }
+    }
+    void DisableButtons()
+    {
+
+        if (gasButton)
+            gasButton.gameObject.SetActive(false);
+        if (gradualGasButton)
+            gradualGasButton.gameObject.SetActive(false);
+        if (leftButton)
+            leftButton.gameObject.SetActive(false);
+        if (rightButton)
+            rightButton.gameObject.SetActive(false);
+        if (brakeButton)
+            brakeButton.gameObject.SetActive(false);
+        if (steeringWheel)
+            steeringWheel.gameObject.SetActive(false);
+        if (handbrakeButton)
+            handbrakeButton.gameObject.SetActive(false);
+        if (NOSButton)
+            NOSButton.gameObject.SetActive(false);
+        if (NOSButtonSteeringWheel)
+            NOSButtonSteeringWheel.gameObject.SetActive(false);
+        if (gearButton)
+            gearButton.gameObject.SetActive(false);
+        if (joystick)
+            joystick.gameObject.SetActive(false);
+
+    }
+
+    void EnableButtons()
+    {
+
+        if (gasButton)
+            gasButton.gameObject.SetActive(true);
+        //if (gradualGasButton)
+        //gradualGasButton.gameObject.SetActive (true);
+        if (leftButton)
+            leftButton.gameObject.SetActive(true);
+        if (rightButton)
+            rightButton.gameObject.SetActive(true);
+        if (brakeButton)
+            brakeButton.gameObject.SetActive(true);
+        if (steeringWheel)
+            steeringWheel.gameObject.SetActive(true);
+        if (handbrakeButton)
+            handbrakeButton.gameObject.SetActive(true);
+
+        if (canUseNos)
+        {
+
+            if (NOSButton)
+                NOSButton.gameObject.SetActive(true);
+            if (NOSButtonSteeringWheel)
+                NOSButtonSteeringWheel.gameObject.SetActive(true);
 
-	}
+        }
 
-	private void CheckController(){
+        if (joystick)
+            joystick.gameObject.SetActive(true);
 
-		if (!RCC_SceneManager.Instance.activePlayerVehicle)
-			return;
+    }
+
+    void Update()
+    {
 
-		if (RCCSettings.controllerType == RCC_Settings.ControllerType.Mobile) {
+        if (RCCSettings.controllerType != RCC_Settings.ControllerType.Mobile)
+            return;
 
-			EnableButtons ();
-			return;
+        //   Debug.Log("Gas: " + gasInput);
 
-		} else {
+        switch (RCCSettings.mobileController)
+        {
 
-			DisableButtons ();
-			return;
+            case RCC_Settings.MobileController.TouchScreen:
 
-		}
+                gyroInput = 0f;
 
-	}
+                if (steeringWheel && steeringWheel.gameObject.activeInHierarchy)
+                    steeringWheel.gameObject.SetActive(false);
 
-	void DisableButtons(){
+                if (NOSButton && NOSButton.gameObject.activeInHierarchy != canUseNos)
+                    NOSButton.gameObject.SetActive(canUseNos);
 
-		if (gasButton)
-			gasButton.gameObject.SetActive (false);
-		if (gradualGasButton)
-			gradualGasButton.gameObject.SetActive (false);
-		if (leftButton)
-			leftButton.gameObject.SetActive (false);
-		if (rightButton)
-			rightButton.gameObject.SetActive (false);
-		if (brakeButton)
-			brakeButton.gameObject.SetActive (false);
-		if (steeringWheel)
-			steeringWheel.gameObject.SetActive (false);
-		if (handbrakeButton)
-			handbrakeButton.gameObject.SetActive (false);
-		if (NOSButton)
-			NOSButton.gameObject.SetActive (false);
-		if (NOSButtonSteeringWheel)
-			NOSButtonSteeringWheel.gameObject.SetActive (false);
-		if (gearButton)
-			gearButton.gameObject.SetActive (false);
-		if (joystick)
-			joystick.gameObject.SetActive (false);
+                if (joystick && joystick.gameObject.activeInHierarchy)
+                    joystick.gameObject.SetActive(false);
 
-	}
+                if (!leftButton.gameObject.activeInHierarchy)
+                {
 
-	void EnableButtons(){
+                    brakeButton.transform.position = orgBrakeButtonPos;
+                    leftButton.gameObject.SetActive(true);
 
-		if (gasButton)
-			gasButton.gameObject.SetActive (true);
-		//			if (gradualGasButton)
-		//				gradualGasButton.gameObject.SetActive (true);
-		if (leftButton)
-			leftButton.gameObject.SetActive (true);
-		if (rightButton)
-			rightButton.gameObject.SetActive (true);
-		if (brakeButton)
-			brakeButton.gameObject.SetActive (true);
-		if (steeringWheel)
-			steeringWheel.gameObject.SetActive (true);
-		if (handbrakeButton)
-			handbrakeButton.gameObject.SetActive (true);
+                }
 
-		if (canUseNos) {
+                if (!rightButton.gameObject.activeInHierarchy)
+                    rightButton.gameObject.SetActive(true);
 
-			if (NOSButton)
-				NOSButton.gameObject.SetActive (true);
-			if (NOSButtonSteeringWheel)
-				NOSButtonSteeringWheel.gameObject.SetActive (true);
+                break;
 
-		}
+            case RCC_Settings.MobileController.Gyro:
 
-		if (joystick)
-			joystick.gameObject.SetActive (true);
-		
-	}
+                gyroInput = Input.acceleration.x * RCCSettings.gyroSensitivity;
+                brakeButton.transform.position = leftButton.transform.position;
 
-	void Update(){
+                if (steeringWheel.gameObject.activeInHierarchy)
+                    steeringWheel.gameObject.SetActive(false);
 
-		if (RCCSettings.controllerType != RCC_Settings.ControllerType.Mobile)
-			return;
+                if (NOSButton && NOSButton.gameObject.activeInHierarchy != canUseNos)
+                    NOSButton.gameObject.SetActive(canUseNos);
 
-		switch (RCCSettings.mobileController) {
+                if (joystick && joystick.gameObject.activeInHierarchy)
+                    joystick.gameObject.SetActive(false);
 
-		case RCC_Settings.MobileController.TouchScreen:
+                if (leftButton.gameObject.activeInHierarchy)
+                    leftButton.gameObject.SetActive(false);
 
-			gyroInput = 0f;
+                if (rightButton.gameObject.activeInHierarchy)
+                    rightButton.gameObject.SetActive(false);
 
-			if(steeringWheel && steeringWheel.gameObject.activeInHierarchy)
-				steeringWheel.gameObject.SetActive(false);
+                break;
 
-			if(NOSButton && NOSButton.gameObject.activeInHierarchy != canUseNos)
-				NOSButton.gameObject.SetActive(canUseNos);
+            case RCC_Settings.MobileController.SteeringWheel:
 
-			if(joystick && joystick.gameObject.activeInHierarchy)
-				joystick.gameObject.SetActive(false);
+                gyroInput = 0f;
 
-			if(!leftButton.gameObject.activeInHierarchy){
+                if (!steeringWheel.gameObject.activeInHierarchy)
+                {
+                    steeringWheel.gameObject.SetActive(true);
+                    brakeButton.transform.position = orgBrakeButtonPos;
+                }
 
-				brakeButton.transform.position = orgBrakeButtonPos;
-				leftButton.gameObject.SetActive(true);
+                if (NOSButton && NOSButton.gameObject.activeInHierarchy)
+                    NOSButton.gameObject.SetActive(false);
 
-			}
+                if (NOSButtonSteeringWheel && NOSButtonSteeringWheel.gameObject.activeInHierarchy != canUseNos)
+                    NOSButtonSteeringWheel.gameObject.SetActive(canUseNos);
 
-			if(!rightButton.gameObject.activeInHierarchy)
-				rightButton.gameObject.SetActive(true);
+                if (joystick && joystick.gameObject.activeInHierarchy)
+                    joystick.gameObject.SetActive(false);
 
-			break;
+                if (leftButton.gameObject.activeInHierarchy)
+                    leftButton.gameObject.SetActive(false);
+                if (rightButton.gameObject.activeInHierarchy)
+                    rightButton.gameObject.SetActive(false);
 
-		case RCC_Settings.MobileController.Gyro:
+                break;
 
-			gyroInput = Input.acceleration.x * RCCSettings.gyroSensitivity;
-			brakeButton.transform.position = leftButton.transform.position;
+            case RCC_Settings.MobileController.Joystick:
 
-			if(steeringWheel.gameObject.activeInHierarchy)
-				steeringWheel.gameObject.SetActive(false);
+                gyroInput = 0f;
 
-			if(NOSButton && NOSButton.gameObject.activeInHierarchy != canUseNos)
-				NOSButton.gameObject.SetActive(canUseNos);
+                if (steeringWheel && steeringWheel.gameObject.activeInHierarchy)
+                    steeringWheel.gameObject.SetActive(false);
 
-			if(joystick && joystick.gameObject.activeInHierarchy)
-				joystick.gameObject.SetActive(false);
+                if (NOSButton && NOSButton.gameObject.activeInHierarchy != canUseNos)
+                    NOSButton.gameObject.SetActive(canUseNos);
 
-			if(leftButton.gameObject.activeInHierarchy)
-				leftButton.gameObject.SetActive(false);
+                if (joystick && !joystick.gameObject.activeInHierarchy)
+                {
+                    joystick.gameObject.SetActive(true);
+                    brakeButton.transform.position = orgBrakeButtonPos;
+                }
 
-			if(rightButton.gameObject.activeInHierarchy)
-				rightButton.gameObject.SetActive(false);
+                if (leftButton.gameObject.activeInHierarchy)
+                    leftButton.gameObject.SetActive(false);
 
-			break;
+                if (rightButton.gameObject.activeInHierarchy)
+                    rightButton.gameObject.SetActive(false);
 
-		case RCC_Settings.MobileController.SteeringWheel:
+                break;
 
-			gyroInput = 0f;
+        }
 
-			if(!steeringWheel.gameObject.activeInHierarchy){
-				steeringWheel.gameObject.SetActive(true);
-				brakeButton.transform.position = orgBrakeButtonPos;
-			}
+        gasInput = GetInput(gasButton) + GetInput(gradualGasButton);
+        brakeInput = GetInput(brakeButton);
+        leftInput = GetInput(leftButton);
+        rightInput = GetInput(rightButton);
+        handbrakeInput = GetInput(handbrakeButton);
+        NOSInput = Mathf.Clamp((GetInput(NOSButton) + GetInput(NOSButtonSteeringWheel)), 0f, 1f);
 
-			if(NOSButton && NOSButton.gameObject.activeInHierarchy)
-				NOSButton.gameObject.SetActive(false);
+        if (steeringWheel)
+            steeringWheelInput = steeringWheel.input;
 
-			if(NOSButtonSteeringWheel && NOSButtonSteeringWheel.gameObject.activeInHierarchy != canUseNos)
-				NOSButtonSteeringWheel.gameObject.SetActive(canUseNos);
+        if (joystick)
+            joystickInput = joystick.inputHorizontal;
 
-			if(joystick && joystick.gameObject.activeInHierarchy)
-				joystick.gameObject.SetActive(false);
+        FeedRCC();
 
-			if(leftButton.gameObject.activeInHierarchy)
-				leftButton.gameObject.SetActive(false);
-			if(rightButton.gameObject.activeInHierarchy)
-				rightButton.gameObject.SetActive(false);
+    }
 
-			break;
+    private void FeedRCC()
+    {
 
-		case RCC_Settings.MobileController.Joystick:
+        if (!RCC_SceneManager.Instance.activePlayerVehicle)
+            return;
 
-			gyroInput = 0f;
+        canUseNos = RCC_SceneManager.Instance.activePlayerVehicle.useNOS;
 
-			if (steeringWheel && steeringWheel.gameObject.activeInHierarchy)
-				steeringWheel.gameObject.SetActive (false);
+        if (RCC_SceneManager.Instance.activePlayerVehicle.canControl && !RCC_SceneManager.Instance.activePlayerVehicle.externalController)
+        {
 
-			if (NOSButton && NOSButton.gameObject.activeInHierarchy != canUseNos)
-				NOSButton.gameObject.SetActive (canUseNos);
+            RCC_SceneManager.Instance.activePlayerVehicle.gasInput = gasInput;
+            RCC_SceneManager.Instance.activePlayerVehicle.brakeInput = brakeInput;
+            RCC_SceneManager.Instance.activePlayerVehicle.steerInput = -leftInput + rightInput + steeringWheelInput + gyroInput + joystickInput;
+            RCC_SceneManager.Instance.activePlayerVehicle.handbrakeInput = handbrakeInput;
+            RCC_SceneManager.Instance.activePlayerVehicle.boostInput = NOSInput;
 
-			if (joystick && !joystick.gameObject.activeInHierarchy) {
-				joystick.gameObject.SetActive (true);
-				brakeButton.transform.position = orgBrakeButtonPos;
-			}
+        }
 
-			if(leftButton.gameObject.activeInHierarchy)
-				leftButton.gameObject.SetActive(false);
+    }
 
-			if(rightButton.gameObject.activeInHierarchy)
-				rightButton.gameObject.SetActive(false);
+    // Gets input from button.
+    float GetInput(RCC_UIController button)
+    {
 
-			break;
+        if (button == null)
+            return 0f;
 
-		}
+        return (button.input);
 
-		gasInput = GetInput(gasButton) + GetInput(gradualGasButton);
-		brakeInput = GetInput(brakeButton);
-		leftInput = GetInput(leftButton);
-		rightInput = GetInput(rightButton);
-		handbrakeInput = GetInput(handbrakeButton);
-		NOSInput = Mathf.Clamp((GetInput(NOSButton) + GetInput(NOSButtonSteeringWheel)), 0f, 1f);
+    }
 
-		if(steeringWheel)
-			steeringWheelInput = steeringWheel.input;
+    void OnDisable()
+    {
 
-		if(joystick)
-			joystickInput = joystick.inputHorizontal;
+        RCC_SceneManager.OnMainControllerChanged -= CheckController;
+        RCC_SceneManager.OnVehicleChanged -= CheckController;
 
-		FeedRCC ();
-
-	}
-
-	private void FeedRCC(){
-
-		if (!RCC_SceneManager.Instance.activePlayerVehicle)
-			return;
-		
-		canUseNos = RCC_SceneManager.Instance.activePlayerVehicle.useNOS;
-
-		if (RCC_SceneManager.Instance.activePlayerVehicle.canControl && !RCC_SceneManager.Instance.activePlayerVehicle.externalController) {
-
-			RCC_SceneManager.Instance.activePlayerVehicle.gasInput = gasInput;
-			RCC_SceneManager.Instance.activePlayerVehicle.brakeInput = brakeInput;
-			RCC_SceneManager.Instance.activePlayerVehicle.steerInput = -leftInput + rightInput + steeringWheelInput + gyroInput + joystickInput;
-			RCC_SceneManager.Instance.activePlayerVehicle.handbrakeInput = handbrakeInput;
-			RCC_SceneManager.Instance.activePlayerVehicle.boostInput = NOSInput;
-
-		}
-
-	}
-
-	// Gets input from button.
-	float GetInput(RCC_UIController button){
-
-		if(button == null)
-			return 0f;
-
-		return(button.input);
-
-	}
-
-	void OnDisable(){
-
-		RCC_SceneManager.OnMainControllerChanged -= CheckController;
-		RCC_SceneManager.OnVehicleChanged -= CheckController;
-
-	}
+    }
 
 }
