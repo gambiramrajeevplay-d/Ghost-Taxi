@@ -1,3 +1,4 @@
+
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
@@ -16,13 +17,12 @@ public class GhostDropTrigger : MonoBehaviour
     private List<PassengerPrefabEntry> passengerPrefabs =
         new List<PassengerPrefabEntry>();
 
-    [Tooltip("Name used to select the passenger to drop, for example Witch or Ghost.")]
+    [Tooltip("Name used to select the passenger to drop.")]
     [SerializeField] private string passengerNameToDrop = "witch";
 
     [SerializeField] private Transform fallbackSpawnPoint;
 
     [Header("Arrow")]
-    [Tooltip("Arrow marking the drop point. Shown when this trigger is turned on, turned OFF when the player enters.")]
     [SerializeField] private GameObject arrow;
 
     [Header("Player Car Spawn Point Search")]
@@ -51,16 +51,11 @@ public class GhostDropTrigger : MonoBehaviour
     [SerializeField] private float controlResumeDelay = 0.25f;
 
     [Header("Smooth Stop")]
-    [Tooltip("How long the car takes to slow down to a stop after entering the trigger.")]
     [SerializeField] private float stopDuration = 0.9f;
-
-    [Tooltip("The player keeps control for this long, then controls are taken away.")]
     [SerializeField] private float controlLossDelay = 0.35f;
 
     [Header("Passenger Effects")]
     [SerializeField] private bool disableAllEffectsOnDrop = true;
-
-    [Tooltip("Stop and remove audio objects belonging to passenger effects.")]
     [SerializeField] private bool stopPassengerEffectAudio = true;
 
     [Header("Finish")]
@@ -76,8 +71,6 @@ public class GhostDropTrigger : MonoBehaviour
 
     private void OnEnable()
     {
-        // The pickup script turns this trigger on after the passenger is picked up.
-        // Show the arrow at that moment (unless the drop already happened).
         if (!dropStarted && arrow != null)
             arrow.SetActive(true);
     }
@@ -87,11 +80,15 @@ public class GhostDropTrigger : MonoBehaviour
         if (dropStarted)
             return;
 
+        // First verify that the entering collider belongs to a car.
         RCC_CarControllerV3 car =
             other.GetComponentInParent<RCC_CarControllerV3>();
 
         if (car == null)
             return;
+
+        // Lock pause only when the player car enters this trigger.
+        Pauser.LockPause();
 
         playerCar = car;
         playerRigidbody = playerCar.GetComponent<Rigidbody>();
@@ -99,25 +96,18 @@ public class GhostDropTrigger : MonoBehaviour
         dropStarted = true;
         originalCanControl = playerCar.canControl;
 
-        // Hide the drop-point arrow.
         HideArrow();
 
-        // Activate the cinematic camera immediately on entering the trigger.
+        // Activate the cinematic camera.
         if (GameManager.Instance != null)
         {
             GameManager.Instance.ActivateCinematicCamera(playerCar);
         }
 
         if (disableAllEffectsOnDrop)
-        {
-            DisableAllPassengerEffects();
-        }
-
-        dropRoutine = StartCoroutine(DropPassenger());
-
-        if (disableAllEffectsOnDrop)
             DisableAllPassengerEffects();
 
+        // Start the drop sequence only once.
         dropRoutine = StartCoroutine(DropPassenger());
     }
 
@@ -211,14 +201,12 @@ public class GhostDropTrigger : MonoBehaviour
         if (playerCar == null)
             return;
 
-        // Ghost effect.
         GhostCarEffect ghost =
             playerCar.GetComponentInChildren<GhostCarEffect>(true);
 
         if (ghost != null)
             ghost.DeactivateGhostEffect();
 
-        // Remove any remaining orbiting ghost clones.
         GhostOrbit[] orbitGhosts =
             playerCar.GetComponentsInChildren<GhostOrbit>(true);
 
@@ -228,28 +216,24 @@ public class GhostDropTrigger : MonoBehaviour
                 Destroy(orbit.gameObject);
         }
 
-        // Witch effect.
         WitchCarEffect witch =
             playerCar.GetComponentInChildren<WitchCarEffect>(true);
 
         if (witch != null)
             witch.DeactivateWitchEffect();
 
-        // Vampire effect.
         VampireTeleportEffect vampire =
             playerCar.GetComponentInChildren<VampireTeleportEffect>(true);
 
         if (vampire != null)
             vampire.DeactivateVampireEffect();
 
-        // Skeleton effect.
         SkeletonCarEffect skeleton =
             playerCar.GetComponentInChildren<SkeletonCarEffect>(true);
 
         if (skeleton != null)
             skeleton.DeactivateSkeletonEffect();
 
-        // Explicitly stop any dedicated effect audio still present.
         if (stopPassengerEffectAudio)
             StopPassengerEffectAudio();
     }
@@ -305,10 +289,14 @@ public class GhostDropTrigger : MonoBehaviour
         {
             Debug.LogWarning(
                 "GhostDropTrigger: No valid passenger prefab assigned.",
-                this
-            );
+                this);
 
             yield return ResumeControls();
+
+            // Allow pausing again if the drop cannot proceed.
+            Pauser.UnlockPause();
+
+            dropRoutine = null;
             yield break;
         }
 
@@ -334,8 +322,7 @@ public class GhostDropTrigger : MonoBehaviour
         GameObject spawned = Instantiate(
             prefab,
             spawnPosition,
-            initialRotation
-        );
+            initialRotation);
 
         Vector3 direction =
             movementDirection.sqrMagnitude > 0.0001f
@@ -352,7 +339,6 @@ public class GhostDropTrigger : MonoBehaviour
             direction.Normalize();
         }
 
-        // WitchMovement handles walking, animation and ground detection.
         WitchMovement witchMovement =
             spawned.GetComponentInChildren<WitchMovement>(true);
 
@@ -361,8 +347,7 @@ public class GhostDropTrigger : MonoBehaviour
             witchMovement.StartWalkingAway(
                 direction,
                 movementDistance,
-                movementSpeed
-            );
+                movementSpeed);
 
             while (spawned != null &&
                    witchMovement != null &&
@@ -376,8 +361,7 @@ public class GhostDropTrigger : MonoBehaviour
             yield return MovePassengerNormally(
                 spawned,
                 direction,
-                initialRotation
-            );
+                initialRotation);
         }
 
         if (spawned != null)
@@ -388,15 +372,13 @@ public class GhostDropTrigger : MonoBehaviour
 
         if (GameManager.Instance != null)
         {
-            // Start the cinematic and pass the player's car to GameManager.
             GameManager.Instance.PassengerDropped(playerCar);
         }
         else
         {
             Debug.LogWarning(
                 "GhostDropTrigger: GameManager instance not found.",
-                this
-            );
+                this);
         }
 
         yield return ResumeControls();
@@ -436,8 +418,8 @@ public class GhostDropTrigger : MonoBehaviour
                 targetRotation =
                     Quaternion.LookRotation(
                         lookDirection.normalized,
-                        Vector3.up
-                    ) * Quaternion.Euler(movementRotationOffset);
+                        Vector3.up)
+                    * Quaternion.Euler(movementRotationOffset);
 
                 hasTargetRotation = true;
             }
@@ -453,8 +435,7 @@ public class GhostDropTrigger : MonoBehaviour
             spawned.transform.position = Vector3.MoveTowards(
                 spawned.transform.position,
                 targetPosition,
-                speed * Time.deltaTime
-            );
+                speed * Time.deltaTime);
 
             if (hasTargetRotation)
             {
@@ -464,8 +445,7 @@ public class GhostDropTrigger : MonoBehaviour
                         : Quaternion.RotateTowards(
                             spawned.transform.rotation,
                             targetRotation,
-                            rotationSpeed * Time.deltaTime
-                        );
+                            rotationSpeed * Time.deltaTime);
             }
 
             yield return null;
@@ -580,8 +560,6 @@ public class GhostDropTrigger : MonoBehaviour
 
     private void OnDisable()
     {
-        // If this trigger is disabled during a drop, stop its coroutine
-        // and restore the player's controls.
         if (dropRoutine != null)
         {
             StopCoroutine(dropRoutine);

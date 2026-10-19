@@ -21,6 +21,7 @@ public class Pauser : MonoBehaviour
 
     private bool isPaused;
     private bool instructionPanelLock;
+    private bool isApplicationFocused = true;
 
     private void Awake()
     {
@@ -44,8 +45,12 @@ public class Pauser : MonoBehaviour
 
     private void Start()
     {
-        if (SceneManager.GetActiveScene().name == "Tutorial")
-            PauseLocked = true;
+        // Reset the general pause state, but do not clear
+        // instructionPanelLock here. PassengerInstructionUI
+        // may already have enabled that lock in its Start().
+        PauseLocked = false;
+        isPaused = false;
+        Time.timeScale = 1f;
 
         UpdatePauseButton();
         UpdateSoundIcon();
@@ -53,8 +58,13 @@ public class Pauser : MonoBehaviour
 
     private void Update()
     {
-        if (PauseLocked || instructionPanelLock || IsGameFinished())
+        if (PauseLocked ||
+            instructionPanelLock ||
+            IsGameFinished() ||
+            !isApplicationFocused)
+        {
             return;
+        }
 
         if (Input.GetKeyDown(KeyCode.Escape))
         {
@@ -73,32 +83,43 @@ public class Pauser : MonoBehaviour
 
     public void Pause()
     {
-        if (PauseLocked || instructionPanelLock ||
-            IsGameFinished() || isPaused)
+        // Never open the pause screen while instructions
+        // or a passenger pickup lock is active.
+        if (PauseLocked ||
+            instructionPanelLock ||
+            IsGameFinished() ||
+            isPaused)
+        {
             return;
+        }
 
         isPaused = true;
+        Time.timeScale = 0f;
+
+        if (LevelObject != null)
+            LevelObject.SetActive(false);
 
         if (PausePannel != null)
             PausePannel.SetActive(true);
 
-        if (PauseButton != null &&
-            !AndroidTV.IsAndroidOrFireTv())
-        {
-            PauseButton.SetActive(false);
-        }
-
-        Time.timeScale = 0f;
+        UpdatePauseButton();
         UpdateSoundIcon();
     }
 
     public void Resume()
     {
-        if (instructionPanelLock || PauseLocked || IsGameFinished())
+        if (PauseLocked ||
+            instructionPanelLock ||
+            IsGameFinished())
+        {
             return;
+        }
 
         if (PausePannel != null)
             PausePannel.SetActive(false);
+
+        if (LevelObject != null)
+            LevelObject.SetActive(true);
 
         isPaused = false;
         Time.timeScale = 1f;
@@ -115,7 +136,7 @@ public class Pauser : MonoBehaviour
 
         if (locked)
         {
-            // Close any pause menu and prevent pausing during instructions.
+            // Close any pause screen if instructions begin.
             if (PausePannel != null)
                 PausePannel.SetActive(false);
 
@@ -123,10 +144,16 @@ public class Pauser : MonoBehaviour
             Time.timeScale = 1f;
         }
 
+        // Hides the pause button while instructions are active.
+        // Shows it again after the instruction panel closes,
+        // unless another pause lock or game-finished state exists.
         UpdatePauseButton();
     }
 
-    public bool IsInstructionPanelLocked => instructionPanelLock;
+    public bool IsInstructionPanelLocked =>
+        instructionPanelLock;
+
+    public bool IsPaused => isPaused;
 
     public void MM()
     {
@@ -134,13 +161,14 @@ public class Pauser : MonoBehaviour
         PauseLocked = false;
         instructionPanelLock = false;
         isPaused = false;
-
+        SaveScript.cameFromGameplay = true;
         SceneManager.LoadScene("UI");
     }
 
     public void ToggleSound()
     {
-        AudioManagerPause.IsMuted = !AudioManagerPause.IsMuted;
+        AudioManagerPause.IsMuted =
+            !AudioManagerPause.IsMuted;
 
         ApplySoundSetting();
         UpdateSoundIcon();
@@ -157,7 +185,9 @@ public class Pauser : MonoBehaviour
         if (soundIcon != null)
         {
             soundIcon.sprite =
-                AudioManagerPause.IsMuted ? sound_off : sound_on;
+                AudioManagerPause.IsMuted
+                    ? sound_off
+                    : sound_on;
         }
     }
 
@@ -167,7 +197,6 @@ public class Pauser : MonoBehaviour
             return;
 
         bool shouldShow =
-            !AndroidTV.IsAndroidOrFireTv() &&
             !PauseLocked &&
             !instructionPanelLock &&
             !IsGameFinished() &&
@@ -197,10 +226,6 @@ public class Pauser : MonoBehaviour
 
     public static void UnlockPause()
     {
-        // Keep the Tutorial scene's existing restriction.
-        if (SceneManager.GetActiveScene().name == "Tutorial")
-            return;
-
         PauseLocked = false;
 
         if (instance != null)
@@ -209,6 +234,8 @@ public class Pauser : MonoBehaviour
 
     private void OnApplicationFocus(bool focus)
     {
+        isApplicationFocused = focus;
+
         if (!focus)
         {
             if (!PauseLocked &&

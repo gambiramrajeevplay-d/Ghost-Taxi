@@ -1,4 +1,3 @@
-
 using System.Collections;
 using UnityEngine;
 
@@ -40,7 +39,9 @@ public class GhostPickupTrigger : MonoBehaviour
 
     private RCC_CarControllerV3 playerCar;
     private Rigidbody playerRigidbody;
+
     private bool pickupStarted;
+    private bool pickupFinished;
 
     private void Awake()
     {
@@ -50,12 +51,13 @@ public class GhostPickupTrigger : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (pickupStarted)
+        if (pickupStarted || pickupFinished)
             return;
 
         RCC_CarControllerV3 car =
             other.GetComponentInParent<RCC_CarControllerV3>();
 
+        // Ignore objects that are not part of the player car.
         if (car == null)
             return;
 
@@ -63,10 +65,14 @@ public class GhostPickupTrigger : MonoBehaviour
         playerRigidbody = playerCar.GetComponent<Rigidbody>();
         pickupStarted = true;
 
+        // Prevent pausing while the passenger enters the car.
+        Pauser.LockPause();
+
         if (arrow != null)
             arrow.SetActive(false);
 
         ResolveReferences();
+
         StartCoroutine(PickupSequence());
     }
 
@@ -113,7 +119,8 @@ public class GhostPickupTrigger : MonoBehaviour
             }
 
             float t = Mathf.Clamp01(elapsed / duration);
-            float remaining = 1f - Mathf.SmoothStep(0f, 1f, t);
+            float remaining =
+                1f - Mathf.SmoothStep(0f, 1f, t);
 
             float ratio = previousRemaining > 0.0001f
                 ? remaining / previousRemaining
@@ -134,7 +141,7 @@ public class GhostPickupTrigger : MonoBehaviour
             }
         }
 
-        if (!controlsRemoved)
+        if (!controlsRemoved && playerCar != null)
             playerCar.canControl = false;
 
         if (playerRigidbody != null)
@@ -142,7 +149,9 @@ public class GhostPickupTrigger : MonoBehaviour
             Vector3 velocity = playerRigidbody.velocity;
 
             playerRigidbody.velocity = new Vector3(
-                0f, velocity.y, 0f);
+                0f,
+                velocity.y,
+                0f);
 
             playerRigidbody.angularVelocity = Vector3.zero;
         }
@@ -157,7 +166,9 @@ public class GhostPickupTrigger : MonoBehaviour
 
                 if (passenger == null)
                 {
-                    GhostMovement ghost = FindClosestPassenger<GhostMovement>();
+                    GhostMovement ghost =
+                        FindClosestPassenger<GhostMovement>();
+
                     if (ghost != null)
                         passenger = ghost.gameObject;
                 }
@@ -168,7 +179,9 @@ public class GhostPickupTrigger : MonoBehaviour
 
                 if (passenger == null)
                 {
-                    WitchMovement witch = FindClosestPassenger<WitchMovement>();
+                    WitchMovement witch =
+                        FindClosestPassenger<WitchMovement>();
+
                     if (witch != null)
                         passenger = witch.gameObject;
                 }
@@ -179,7 +192,9 @@ public class GhostPickupTrigger : MonoBehaviour
 
                 if (passenger == null)
                 {
-                    WitchMovement vampire = FindClosestPassenger<WitchMovement>();
+                    WitchMovement vampire =
+                        FindClosestPassenger<WitchMovement>();
+
                     if (vampire != null)
                         passenger = vampire.gameObject;
                 }
@@ -190,7 +205,9 @@ public class GhostPickupTrigger : MonoBehaviour
 
                 if (passenger == null)
                 {
-                    WitchMovement skeleton = FindClosestPassenger<WitchMovement>();
+                    WitchMovement skeleton =
+                        FindClosestPassenger<WitchMovement>();
+
                     if (skeleton != null)
                         passenger = skeleton.gameObject;
                 }
@@ -199,13 +216,15 @@ public class GhostPickupTrigger : MonoBehaviour
             case PassengerType.Zombie:
                 if (passenger == null)
                 {
-                    WitchMovement zombie = FindClosestPassenger<WitchMovement>();
+                    WitchMovement zombie =
+                        FindClosestPassenger<WitchMovement>();
+
                     if (zombie != null)
                         passenger = zombie.gameObject;
                 }
                 break;
         }
-    } 
+    }
 
     private T FindEffect<T>(T assigned) where T : MonoBehaviour
     {
@@ -315,21 +334,20 @@ public class GhostPickupTrigger : MonoBehaviour
 
         if (movement == null)
         {
-            HidePassenger();
             FinishGhostPickup();
             return;
         }
 
         movement.StartMovingToCar(
-            playerCar.transform, FinishGhostPickup);
+            playerCar.transform,
+            FinishGhostPickup);
     }
 
     private void StartWalkingPassengerPickup()
     {
         if (passenger == null)
         {
-            ActivatePassengerEffect();
-            EnablePlayerControl();
+            CompleteWalkingPickup();
             return;
         }
 
@@ -340,18 +358,23 @@ public class GhostPickupTrigger : MonoBehaviour
 
         if (movement == null)
         {
-            HidePassenger();
-            ActivatePassengerEffect();
-            EnablePlayerControl();
+            CompleteWalkingPickup();
             return;
         }
 
-        movement.StartWalkingToCar(playerCar.transform, () =>
-        {
-            HidePassenger();
-            ActivatePassengerEffect();
-            EnablePlayerControl();
-        });
+        movement.StartWalkingToCar(
+            playerCar.transform,
+            CompleteWalkingPickup);
+    }
+
+    // Called when a walking passenger reaches the car.
+    private void CompleteWalkingPickup()
+    {
+        // Hide the passenger GameObject after entering the car.
+        HidePassenger();
+
+        ActivatePassengerEffect();
+        EnablePlayerControl();
     }
 
     private void ActivatePassengerEffect()
@@ -381,6 +404,7 @@ public class GhostPickupTrigger : MonoBehaviour
 
     private void FinishGhostPickup()
     {
+        // Hide the ghost once it reaches the car.
         HidePassenger();
 
         if (ghostEffect != null)
@@ -397,6 +421,11 @@ public class GhostPickupTrigger : MonoBehaviour
 
     private void EnablePlayerControl()
     {
+        if (pickupFinished)
+            return;
+
+        pickupFinished = true;
+
         if (ArrowPointer.Instance != null)
             ArrowPointer.Instance.SwitchToDropTarget();
 
@@ -405,5 +434,8 @@ public class GhostPickupTrigger : MonoBehaviour
 
         if (playerCar != null)
             playerCar.canControl = true;
+
+        // Pickup is complete; allow pausing again.
+        Pauser.UnlockPause();
     }
 }

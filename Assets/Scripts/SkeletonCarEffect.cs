@@ -1,3 +1,4 @@
+
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
@@ -5,7 +6,7 @@ using System.Collections.Generic;
 public class SkeletonCarEffect : MonoBehaviour
 {
     [Header("Breakable Skeleton Prefab")]
-    [Tooltip("Second prefab containing separate bone GameObjects.")]
+    [Tooltip("Prefab containing separate bone GameObjects.")]
     [SerializeField] private GameObject breakableSkeletonPrefab;
 
     [Header("Collision")]
@@ -36,37 +37,33 @@ public class SkeletonCarEffect : MonoBehaviour
     [Tooltip("Delay between each bone appearing.")]
     [SerializeField] private float boneSpawnInterval = 0.12f;
 
-    [Tooltip("Optional: add BoxColliders to spawned bones.")]
+    [Tooltip("Add BoxColliders to bones without colliders.")]
     [SerializeField] private bool addBoxColliders = true;
 
     [Header("Cleanup")]
     [SerializeField] private float boneLifetime = 12f;
 
     [Header("Skeleton Audio")]
-    [Tooltip("Sound played when the skeleton passenger is picked up.")]
     [SerializeField] private AudioClip skeletonSound;
-
-    [Tooltip("Seconds between sound plays.")]
     [SerializeField] private float soundInterval = 10f;
 
     [Range(0f, 1f)]
     [SerializeField] private float soundVolume = 1f;
 
-    [Tooltip("Play the sound immediately when the effect activates.")]
     [SerializeField] private bool playSoundImmediately = true;
 
-    private AudioSource skeletonAudioSource;
-    private float nextSoundTime;
+    [Header("Level Fail")]
+    [Tooltip("Trigger level fail after the bones have spawned.")]
+    [SerializeField] private bool triggerLevelFail = true;
 
+    private AudioSource skeletonAudioSource;
     private RCC_CarControllerV3 playerCar;
 
     private bool passengerPickedUp;
+    private bool failTriggered;
     private float nextAllowedHitTime;
+    private float nextSoundTime;
 
-    private readonly List<Coroutine> runningEffects =
-        new List<Coroutine>();
-
-    // Everything spawned by this effect, so it can be cleaned up on deactivate.
     private readonly List<GameObject> spawnedObjects =
         new List<GameObject>();
 
@@ -81,24 +78,22 @@ public class SkeletonCarEffect : MonoBehaviour
         {
             Debug.LogError(
                 "SkeletonCarEffect must be attached to the player car.",
-                this
-            );
+                this);
         }
     }
 
-    // Call this when the rigged passenger skeleton is picked up.
+    // Call this when the skeleton passenger is picked up.
     public void ActivateSkeletonEffect()
     {
         if (playerCar == null || breakableSkeletonPrefab == null)
         {
             Debug.LogWarning(
                 "Assign the player car and breakable skeleton prefab.",
-                this
-            );
+                this);
             return;
         }
 
-        if (passengerPickedUp)
+        if (passengerPickedUp || failTriggered)
             return;
 
         passengerPickedUp = true;
@@ -107,39 +102,26 @@ public class SkeletonCarEffect : MonoBehaviour
         SetupAudioSource();
 
         if (playSoundImmediately)
-        {
             PlaySkeletonSound();
-        }
 
         nextSoundTime = Time.time +
             Mathf.Max(0.1f, soundInterval);
 
         Debug.Log(
-            "Skeleton passenger picked up. Waiting for obstacle collisions."
-        );
+            "Skeleton passenger picked up. Waiting for obstacle collision.");
     }
 
     private void SetupAudioSource()
     {
-        if (skeletonAudioSource != null)
+        if (skeletonAudioSource != null || playerCar == null)
             return;
 
-        Transform audioParent = playerCar != null
-            ? playerCar.transform
-            : transform;
+        GameObject audioObject = new GameObject("SkeletonEffectAudio");
+        audioObject.transform.SetParent(playerCar.transform, false);
 
-        GameObject audioObject =
-            new GameObject("SkeletonEffectAudio");
-
-        audioObject.transform.SetParent(audioParent, false);
-
-        skeletonAudioSource =
-            audioObject.AddComponent<AudioSource>();
-
+        skeletonAudioSource = audioObject.AddComponent<AudioSource>();
         skeletonAudioSource.playOnAwake = false;
         skeletonAudioSource.loop = false;
-
-        // 2D audio, consistent with the ghost and witch effects.
         skeletonAudioSource.spatialBlend = 0f;
         skeletonAudioSource.volume = soundVolume;
     }
@@ -172,17 +154,13 @@ public class SkeletonCarEffect : MonoBehaviour
         if (skeletonAudioSource != null)
         {
             skeletonAudioSource.volume = soundVolume;
-
-            skeletonAudioSource.PlayOneShot(
-                skeletonSound,
-                soundVolume
-            );
+            skeletonAudioSource.PlayOneShot(skeletonSound, soundVolume);
         }
     }
 
     private void OnCollisionEnter(Collision collision)
     {
-        if (!passengerPickedUp || playerCar == null)
+        if (!passengerPickedUp || playerCar == null || failTriggered)
             return;
 
         if (collision == null || collision.contactCount == 0)
@@ -203,6 +181,10 @@ public class SkeletonCarEffect : MonoBehaviour
 
         nextAllowedHitTime = Time.time + hitCooldown;
 
+        // Prevent additional collisions from starting duplicate effects.
+        failTriggered = true;
+        passengerPickedUp = false;
+
         Vector3 impactPoint = collision.GetContact(0).point;
         Vector3 impactDirection = -collision.GetContact(0).normal;
 
@@ -211,11 +193,8 @@ public class SkeletonCarEffect : MonoBehaviour
 
         impactDirection.Normalize();
 
-        Coroutine effect = StartCoroutine(
-            SpawnBonesForHit(impactPoint, impactDirection)
-        );
-
-        runningEffects.Add(effect);
+        StartCoroutine(
+            SpawnBonesForHit(impactPoint, impactDirection));
     }
 
     private IEnumerator SpawnBonesForHit(
@@ -228,38 +207,33 @@ public class SkeletonCarEffect : MonoBehaviour
         GameObject skeletonInstance = Instantiate(
             breakableSkeletonPrefab,
             carPosition,
-            playerCar.transform.rotation
-        );
+            playerCar.transform.rotation);
 
         spawnedObjects.Add(skeletonInstance);
 
         List<Transform> boneObjects = new List<Transform>();
 
-        for (int i = 0;
-             i < skeletonInstance.transform.childCount;
-             i++)
+        for (int i = 0; i < skeletonInstance.transform.childCount; i++)
         {
-            Transform child =
-                skeletonInstance.transform.GetChild(i);
-
-            CollectBoneObjects(child, boneObjects);
+            CollectBoneObjects(
+                skeletonInstance.transform.GetChild(i),
+                boneObjects);
         }
 
         if (boneObjects.Count == 0)
         {
             Debug.LogWarning(
-                "No bone child GameObjects found. Make sure the " +
-                "breakable skeleton prefab has separate child objects.",
-                skeletonInstance
-            );
+                "No bone child GameObjects found in the skeleton prefab.",
+                skeletonInstance);
 
-            spawnedObjects.Remove(skeletonInstance);
             Destroy(skeletonInstance);
+            spawnedObjects.Remove(skeletonInstance);
+
+            TriggerLevelFail();
             yield break;
         }
 
-        List<Renderer[]> boneRenderers =
-            new List<Renderer[]>();
+        List<Renderer[]> boneRenderers = new List<Renderer[]>();
 
         foreach (Transform bone in boneObjects)
         {
@@ -268,8 +242,8 @@ public class SkeletonCarEffect : MonoBehaviour
 
             boneRenderers.Add(renderers);
 
-            foreach (Renderer r in renderers)
-                r.enabled = false;
+            foreach (Renderer renderer in renderers)
+                renderer.enabled = false;
         }
 
         for (int i = 0; i < boneObjects.Count; i++)
@@ -285,8 +259,7 @@ public class SkeletonCarEffect : MonoBehaviour
             Vector3 randomOffset = new Vector3(
                 Random.Range(-spawnSpread.x, spawnSpread.x),
                 Random.Range(-spawnSpread.y, spawnSpread.y),
-                Random.Range(-spawnSpread.z, spawnSpread.z)
-            );
+                Random.Range(-spawnSpread.z, spawnSpread.z));
 
             bone.position = carPosition +
                 playerCar.transform.TransformDirection(randomOffset);
@@ -308,16 +281,14 @@ public class SkeletonCarEffect : MonoBehaviour
                 BoxCollider box =
                     bone.gameObject.AddComponent<BoxCollider>();
 
-                Renderer renderer =
-                    bone.GetComponentInChildren<Renderer>();
+                Renderer renderer = bone.GetComponentInChildren<Renderer>();
 
                 if (renderer != null)
                 {
                     Bounds bounds = renderer.bounds;
 
                     box.center = bone.InverseTransformPoint(
-                        bounds.center
-                    );
+                        bounds.center);
 
                     Vector3 localSize =
                         bone.InverseTransformVector(bounds.size);
@@ -325,20 +296,17 @@ public class SkeletonCarEffect : MonoBehaviour
                     box.size = new Vector3(
                         Mathf.Abs(localSize.x),
                         Mathf.Abs(localSize.y),
-                        Mathf.Abs(localSize.z)
-                    );
+                        Mathf.Abs(localSize.z));
                 }
             }
 
             body.velocity = Vector3.zero;
             body.angularVelocity = Vector3.zero;
 
-            Renderer[] renderersForBone = boneRenderers[i];
-
-            foreach (Renderer r in renderersForBone)
+            foreach (Renderer renderer in boneRenderers[i])
             {
-                if (r != null)
-                    r.enabled = true;
+                if (renderer != null)
+                    renderer.enabled = true;
             }
 
             body.AddExplosionForce(
@@ -346,8 +314,7 @@ public class SkeletonCarEffect : MonoBehaviour
                 impactPoint,
                 Mathf.Max(0.1f, explosionRadius),
                 upwardForce,
-                ForceMode.Impulse
-            );
+                ForceMode.Impulse);
 
             Vector3 randomDirection =
                 (impactDirection +
@@ -355,26 +322,43 @@ public class SkeletonCarEffect : MonoBehaviour
 
             body.AddForce(
                 randomDirection * explosionForce * 0.35f,
-                ForceMode.Impulse
-            );
+                ForceMode.Impulse);
 
             body.AddTorque(
                 Random.insideUnitSphere * spinForce,
-                ForceMode.Impulse
-            );
+                ForceMode.Impulse);
 
             if (boneLifetime > 0f)
                 Destroy(bone.gameObject, boneLifetime);
 
             yield return new WaitForSeconds(
-                Mathf.Max(0.01f, boneSpawnInterval)
-            );
+                Mathf.Max(0.01f, boneSpawnInterval));
         }
 
         if (skeletonInstance != null)
         {
             spawnedObjects.Remove(skeletonInstance);
             Destroy(skeletonInstance);
+        }
+
+        // All bones have now spawned. Start the level-fail sequence.
+        TriggerLevelFail();
+    }
+
+    private void TriggerLevelFail()
+    {
+        if (!triggerLevelFail)
+            return;
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.LoseGame();
+        }
+        else
+        {
+            Debug.LogWarning(
+                "SkeletonCarEffect: GameManager instance was not found.",
+                this);
         }
     }
 
@@ -395,24 +379,13 @@ public class SkeletonCarEffect : MonoBehaviour
 
     private void DestroySpawnedObjects()
     {
-        for (int i = 0; i < spawnedObjects.Count; i++)
+        foreach (GameObject spawnedObject in spawnedObjects)
         {
-            if (spawnedObjects[i] != null)
-                Destroy(spawnedObjects[i]);
+            if (spawnedObject != null)
+                Destroy(spawnedObject);
         }
 
         spawnedObjects.Clear();
-    }
-
-    private void OnDisable()
-    {
-        passengerPickedUp = false;
-
-        StopAllCoroutines();
-        runningEffects.Clear();
-
-        DestroySpawnedObjects();
-        StopAndDestroyAudio();
     }
 
     public void DeactivateSkeletonEffect()
@@ -420,12 +393,19 @@ public class SkeletonCarEffect : MonoBehaviour
         passengerPickedUp = false;
 
         StopAllCoroutines();
-        runningEffects.Clear();
-
         DestroySpawnedObjects();
         StopAndDestroyAudio();
 
         nextSoundTime = 0f;
+    }
+
+    private void OnDisable()
+    {
+        passengerPickedUp = false;
+
+        StopAllCoroutines();
+        DestroySpawnedObjects();
+        StopAndDestroyAudio();
     }
 
     private void StopAndDestroyAudio()

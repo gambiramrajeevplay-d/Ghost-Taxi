@@ -91,10 +91,11 @@ public class PassengerInstructionUI : MonoBehaviour
         if (playerCar == null)
             playerCar = FindObjectOfType<RCC_CarControllerV3>();
 
-        if (playerCar != null && displayCoroutine == null)
+        if (displayCoroutine == null && playerCar != null)
             controlsWereEnabled = playerCar.canControl;
 
-        // Lock pause while instructions are displayed.
+        // Lock pausing before showing the instruction panel.
+        // The pause button stays hidden until the panel closes.
         if (!panelLockActive)
         {
             panelLockActive = true;
@@ -142,9 +143,16 @@ public class PassengerInstructionUI : MonoBehaviour
 
     private IEnumerator ShowAndTypeInstruction()
     {
-        instructionPanel.SetActive(true);
+        // Keep the pause lock active for the entire display.
+        if (!panelLockActive)
+        {
+            panelLockActive = true;
 
-        string fullText = instructionText.text;
+            if (Pauser.instance != null)
+                Pauser.instance.SetInstructionPanelLock(true);
+        }
+
+        instructionPanel.SetActive(true);
 
         instructionText.maxVisibleCharacters = 0;
         instructionText.ForceMeshUpdate();
@@ -157,23 +165,30 @@ public class PassengerInstructionUI : MonoBehaviour
             instructionText.maxVisibleCharacters = i + 1;
 
             if (useUnscaledTime)
+            {
                 yield return new WaitForSecondsRealtime(
                     Mathf.Max(0.001f, typingSpeed));
+            }
             else
+            {
                 yield return new WaitForSeconds(
                     Mathf.Max(0.001f, typingSpeed));
+            }
         }
 
         if (useUnscaledTime)
+        {
             yield return new WaitForSecondsRealtime(
                 Mathf.Max(0f, displayDuration));
+        }
         else
+        {
             yield return new WaitForSeconds(
                 Mathf.Max(0f, displayDuration));
-
-        CloseInstructionPanel();
+        }
 
         displayCoroutine = null;
+        CloseInstructionPanel();
     }
 
     public void SkipTyping()
@@ -190,15 +205,18 @@ public class PassengerInstructionUI : MonoBehaviour
         instructionText.maxVisibleCharacters = int.MaxValue;
 
         if (useUnscaledTime)
+        {
             yield return new WaitForSecondsRealtime(
                 Mathf.Max(0f, displayDuration));
+        }
         else
+        {
             yield return new WaitForSeconds(
                 Mathf.Max(0f, displayDuration));
-
-        CloseInstructionPanel();
+        }
 
         displayCoroutine = null;
+        CloseInstructionPanel();
     }
 
     private void CloseInstructionPanel()
@@ -209,9 +227,9 @@ public class PassengerInstructionUI : MonoBehaviour
         if (instructionText != null)
             instructionText.maxVisibleCharacters = int.MaxValue;
 
+        // Restore controls before releasing the instruction lock.
         RestorePlayerControls();
 
-        // Unlock only the instruction panel's pause lock.
         if (panelLockActive)
         {
             panelLockActive = false;

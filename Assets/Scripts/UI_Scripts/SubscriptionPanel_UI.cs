@@ -1,6 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
 public class SubscriptionPanel_UI : MonoBehaviour
@@ -10,54 +8,73 @@ public class SubscriptionPanel_UI : MonoBehaviour
     public GameObject mainMenu;
     public GameObject carSelectionMenu;
     public AudioSource subaudio;
+
     private Animator animator;
+
+    private void Awake()
+    {
+        animator = GetComponent<Animator>();
+    }
 
     private void OnEnable()
     {
         if (animator != null)
-        {
             animator.SetTrigger("Entry");
-        }
-        mainMenuAudioPlayer.Stop();
-        subaudio.loop = true;
+
+        if (mainMenuAudioPlayer != null)
+            mainMenuAudioPlayer.Stop();
+
+        if (subaudio != null)
+            subaudio.loop = true;
     }
 
     private void Start()
     {
         Time.timeScale = 1f;
-        animator = GetComponent<Animator>();
 
-        closeButton.onClick.AddListener(CloseUI);
-        if (!SaveScript.canShowSubScriptionPanel)
+        if (closeButton != null)
+        {
+            closeButton.onClick.RemoveListener(CloseUI);
+            closeButton.onClick.AddListener(CloseUI);
+        }
+
+        // Skip the subscription panel only when it is not
+        // supposed to be shown and gameplay did not request it.
+        if (!SaveScript.canShowSubScriptionPanel &&
+            !SaveScript.cameFromGameplay)
         {
             CloseUI();
-            return;
         }
-        mainMenuAudioPlayer.Stop();
-
     }
-
 
     public void CloseUI()
     {
         gameObject.SetActive(false);
 
-        // Mark as shown
         SaveScript.canShowSubScriptionPanel = false;
 
         if (SaveScript.cameFromGameplay)
         {
-            // Coming from gameplay → go to car selection
-            carSelectionMenu.SetActive(true);
+            // Gameplay Home -> Subscription -> Car Selection.
+            if (mainMenu != null)
+                mainMenu.SetActive(false);
+
+            if (carSelectionMenu != null)
+                carSelectionMenu.SetActive(true);
+
             SaveScript.cameFromGameplay = false;
         }
         else
         {
-            // Coming from main menu → always go back to main menu
-            mainMenu.SetActive(true);
+            // Normal main-menu subscription -> return to main menu.
+            if (mainMenu != null)
+                mainMenu.SetActive(true);
         }
 
-        if (!mainMenuAudioPlayer.isPlaying)
+        if (mainMenuAudioPlayer != null &&
+            !mainMenuAudioPlayer.isPlaying)
+        {
             mainMenuAudioPlayer.Play();
+        }
     }
 }
