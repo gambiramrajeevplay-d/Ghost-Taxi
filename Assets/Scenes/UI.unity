@@ -25105,7 +25105,7 @@ MonoBehaviour:
   - {fileID: 689558884}
   unlockFullGamePanel: {fileID: 403157886}
   unlockFullGamePanelCloseButton: {fileID: 987776267}
-  horseSelectionMenu: {fileID: 1404668032}
+  horseSelectionMenu: {fileID: 389820973}
   forceUnlockAllLevels: 0
   currencyText: {fileID: 1337625687}
 --- !u!114 &1503540867
