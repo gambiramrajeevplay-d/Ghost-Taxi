@@ -114,6 +114,13 @@ public class RCC_Camera : MonoBehaviour
     private float monsterBlend = 0f;                    // 0..1 how much the monster view is active.
     private MonsterAI focusMonster;                 // Monster currently framed.
 
+    [Tooltip("How smoothly the camera follows the monster's position during chase and attack.")]
+    public float monsterPositionSmoothTime = 0.2f;
+
+    private Vector3 smoothedMonsterPosition;
+    private Vector3 monsterPositionSmoothVelocity;
+    private bool hasSmoothedMonsterPosition;
+
     internal float targetFieldOfView = 60f; // Camera will adapt its field of view to this target field of view. All field of views below this line will feed this value.
 
     public float TPSMinimumFOV = 50f;           // Minimum field of view related with vehicle speed.
@@ -510,14 +517,36 @@ public class RCC_Camera : MonoBehaviour
         }
 
         if (best != null)
-            focusMonster = best;
+        {
+            if (focusMonster != best || !hasSmoothedMonsterPosition)
+            {
+                focusMonster = best;
+                smoothedMonsterPosition = best.transform.position;
+                monsterPositionSmoothVelocity = Vector3.zero;
+                hasSmoothedMonsterPosition = true;
+            }
+            else
+            {
+                // Smooth animation/root-motion movement so the camera does not
+                // jitter when the monster attacks or its body moves sharply.
+                smoothedMonsterPosition = Vector3.SmoothDamp(
+                    smoothedMonsterPosition,
+                    best.transform.position,
+                    ref monsterPositionSmoothVelocity,
+                    Mathf.Max(0.01f, monsterPositionSmoothTime));
+            }
+        }
 
         // Fade in while a monster chases, fade out when it stops / dies.
         float targetBlend = (best != null) ? 1f : 0f;
         monsterBlend = Mathf.MoveTowards(monsterBlend, targetBlend, Time.deltaTime * Mathf.Max(0.01f, monsterBlendSpeed));
 
         if (monsterBlend <= 0f)
+        {
             focusMonster = null;
+            hasSmoothedMonsterPosition = false;
+            monsterPositionSmoothVelocity = Vector3.zero;
+        }
 
         return Mathf.SmoothStep(0f, 1f, monsterBlend);
 
@@ -548,7 +577,7 @@ public class RCC_Camera : MonoBehaviour
         if (monsterActive)
         {
 
-            Vector3 toMonster = focusMonster.transform.position - playerCar.transform.position;
+            Vector3 toMonster = smoothedMonsterPosition - playerCar.transform.position;
             toMonster.y = 0f;
 
             if (toMonster.sqrMagnitude > 0.01f)
@@ -618,7 +647,7 @@ public class RCC_Camera : MonoBehaviour
         if (monsterActive)
         {
 
-            Vector3 midPoint = (playerCar.transform.position + focusMonster.transform.position) * 0.5f;
+            Vector3 midPoint = (playerCar.transform.position + smoothedMonsterPosition) * 0.5f;
             lookAtPosition = Vector3.Lerp(lookAtPosition, midPoint, monsterLookWeight * monsterWeight);
 
         }

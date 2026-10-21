@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 5857079245507020061}
   - component: {fileID: 7414997703237388984}
   - component: {fileID: 4684775323837775474}
-  - component: {fileID: 7448024870453514935}
+  - component: {fileID: 4226239416349520326}
   m_Layer: 7
   m_Name: Skeleton arm_up
   m_TagString: Untagged
@@ -84,8 +84,8 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!64 &7448024870453514935
-MeshCollider:
+--- !u!65 &4226239416349520326
+BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -94,7 +94,6 @@ MeshCollider:
   m_Material: {fileID: 0}
   m_IsTrigger: 0
   m_Enabled: 1
-  serializedVersion: 4
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: -1673633208947014081, guid: 5d216455f2dca494896c23707ccbeedb, type: 3}
+  serializedVersion: 2
+  m_Size: {x: 0.11817588, y: 0.38684672, z: 0.13071007}
+  m_Center: {x: -0.004624973, y: 0.19233009, z: -0.0015856129}

@@ -1284,6 +1284,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   exitPopup: {fileID: 43108378}
+  sound: {fileID: 347605228}
 --- !u!1 &90709427
 GameObject:
   m_ObjectHideFlags: 0
@@ -4470,8 +4471,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 3917}
-  m_SizeDelta: {x: 0, y: 3917}
+  m_AnchoredPosition: {x: -0.00008678436, y: 3914.4216}
+  m_SizeDelta: {x: -4.189, y: 3914.422}
   m_Pivot: {x: 0, y: 1}
 --- !u!1 &215208980
 GameObject:
@@ -4857,7 +4858,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_6
   levelToLoad: 6
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 1593553940}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -8013,7 +8014,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_9
   levelToLoad: 9
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 64412907}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -9336,6 +9337,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   exitPopup: {fileID: 1522017986}
+  sound: {fileID: 429835671}
 --- !u!1 &439546567
 GameObject:
   m_ObjectHideFlags: 0
@@ -10027,7 +10029,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_11
   levelToLoad: 11
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 1657780368}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -13810,7 +13812,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_15
   levelToLoad: 15
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 1596346584}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -19008,6 +19010,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 1503540866}
+        m_TargetAssemblyTypeName: LevelSelectionUI, Assembly-CSharp
+        m_MethodName: CloseUnlockFullGamePanel
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &987776268
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -20275,7 +20289,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_14
   levelToLoad: 14
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 439546567}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -23919,7 +23933,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_10
   levelToLoad: 10
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 1877400260}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -26083,7 +26097,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_8
   levelToLoad: 8
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 403066464}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -26822,7 +26836,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_13
   levelToLoad: 13
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 1340368660}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -27185,6 +27199,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   exitPopup: {fileID: 492278950}
+  sound: {fileID: 347605228}
 --- !u!1 &1468675730
 GameObject:
   m_ObjectHideFlags: 0
@@ -29873,8 +29888,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 15.25}
-  m_SizeDelta: {x: 1920, y: 5029.2}
+  m_AnchoredPosition: {x: 3.5150146, y: -0.76708984}
+  m_SizeDelta: {x: 2011.573, y: 5061.285}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1596561930
 MonoBehaviour:
@@ -30779,7 +30794,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_5
   levelToLoad: 5
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 1803487908}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -33230,7 +33245,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_7
   levelToLoad: 7
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 118648520}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -33420,8 +33435,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_AnchoredPosition: {x: -5.7470703, y: 0}
+  m_SizeDelta: {x: 18.922, y: 6.294}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1834817313
 MonoBehaviour:
@@ -36802,7 +36817,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   sceneNameToLoad: Level_12
   levelToLoad: 12
-  isPaidLevel: 0
+  isPaidLevel: 1
   lockImage: {fileID: 260217128}
   levelSelectionUI: {fileID: 1503540866}
   loadingScreen: {fileID: 947702002}
@@ -49716,6 +49731,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4761700992250460418}
+  - component: {fileID: 4761700992250460419}
   m_Layer: 0
   m_Name: Player Car_3
   m_TagString: Player
@@ -49755,6 +49771,19 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 5
   m_LocalEulerAnglesHint: {x: 0, y: -96.396, z: 0}
+--- !u!114 &4761700992250460419
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4761700992250042652}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cb79dbe60ff3e347b8ac2323bd2168a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rotationSpeed: 30
 --- !u!4 &4761700992250515602
 Transform:
   m_ObjectHideFlags: 0
@@ -52040,6 +52069,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5844597238929519001}
+  - component: {fileID: 5844597238929519002}
   m_Layer: 0
   m_Name: Player Car_1
   m_TagString: Player
@@ -52095,6 +52125,19 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 3
   m_LocalEulerAnglesHint: {x: 0, y: -96.396, z: 0}
+--- !u!114 &5844597238929519002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5844597238929133959}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cb79dbe60ff3e347b8ac2323bd2168a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rotationSpeed: 30
 --- !u!23 &5860925740710007881
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -52211,6 +52254,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5887669498708993994}
+  - component: {fileID: 5887669498709100501}
   m_Layer: 0
   m_Name: Player Car_6
   m_TagString: Player
@@ -52218,6 +52262,19 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 0
+--- !u!114 &5887669498709100501
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5887669498709100500}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cb79dbe60ff3e347b8ac2323bd2168a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rotationSpeed: 30
 --- !u!1 &5887669498709170630
 GameObject:
   m_ObjectHideFlags: 0
@@ -55356,6 +55413,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7037483339144470464}
+  - component: {fileID: 7037483339144470465}
   m_Layer: 0
   m_Name: Player Car_2
   m_TagString: Player
@@ -55411,6 +55469,19 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 4
   m_LocalEulerAnglesHint: {x: 0, y: -96.396, z: 0}
+--- !u!114 &7037483339144470465
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7037483339144069086}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cb79dbe60ff3e347b8ac2323bd2168a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rotationSpeed: 30
 --- !u!1 &7043968689622159195
 GameObject:
   m_ObjectHideFlags: 0
@@ -55768,6 +55839,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7180461899651668976}
+  - component: {fileID: 7180461899651668977}
   m_Layer: 0
   m_Name: Player Car_4
   m_TagString: Player
@@ -55807,6 +55879,19 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 6
   m_LocalEulerAnglesHint: {x: 0, y: -96.396, z: 0}
+--- !u!114 &7180461899651668977
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7180461899651234798}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cb79dbe60ff3e347b8ac2323bd2168a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rotationSpeed: 30
 --- !u!4 &7180461899651740256
 Transform:
   m_ObjectHideFlags: 0
@@ -60315,6 +60400,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 9097573213960152311}
+  - component: {fileID: 9097573213960152312}
   m_Layer: 0
   m_Name: Player Car_5
   m_TagString: Player
@@ -60338,6 +60424,19 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 7
   m_LocalEulerAnglesHint: {x: 0, y: -96.396, z: 0}
+--- !u!114 &9097573213960152312
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9097573213960062185}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cb79dbe60ff3e347b8ac2323bd2168a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rotationSpeed: 30
 --- !u!4 &9097573213960211815
 Transform:
   m_ObjectHideFlags: 0

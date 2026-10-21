@@ -1,4 +1,5 @@
-﻿using Script;
+﻿
+using Script;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -23,6 +24,8 @@ public class Pauser : MonoBehaviour
     private bool instructionPanelLock;
     private bool isApplicationFocused = true;
 
+    private bool isTVPlatform;
+
     private void Awake()
     {
         if (instance != null && instance != this)
@@ -32,6 +35,9 @@ public class Pauser : MonoBehaviour
         }
 
         instance = this;
+
+        // Detect Android TV / Fire TV.
+        isTVPlatform = AndroidTV.IsAndroidOrFireTv();
 
         AudioManagerPause.Initialize();
         ApplySoundSetting();
@@ -45,9 +51,6 @@ public class Pauser : MonoBehaviour
 
     private void Start()
     {
-        // Reset the general pause state, but do not clear
-        // instructionPanelLock here. PassengerInstructionUI
-        // may already have enabled that lock in its Start().
         PauseLocked = false;
         isPaused = false;
         Time.timeScale = 1f;
@@ -83,8 +86,6 @@ public class Pauser : MonoBehaviour
 
     public void Pause()
     {
-        // Never open the pause screen while instructions
-        // or a passenger pickup lock is active.
         if (PauseLocked ||
             instructionPanelLock ||
             IsGameFinished() ||
@@ -136,7 +137,6 @@ public class Pauser : MonoBehaviour
 
         if (locked)
         {
-            // Close any pause screen if instructions begin.
             if (PausePannel != null)
                 PausePannel.SetActive(false);
 
@@ -144,9 +144,6 @@ public class Pauser : MonoBehaviour
             Time.timeScale = 1f;
         }
 
-        // Hides the pause button while instructions are active.
-        // Shows it again after the instruction panel closes,
-        // unless another pause lock or game-finished state exists.
         UpdatePauseButton();
     }
 
@@ -155,13 +152,17 @@ public class Pauser : MonoBehaviour
 
     public bool IsPaused => isPaused;
 
+
     public void MM()
     {
         Time.timeScale = 1f;
         PauseLocked = false;
         instructionPanelLock = false;
         isPaused = false;
+
         SaveScript.cameFromGameplay = true;
+        AudioManagerPause.SaveSettings();
+
         SceneManager.LoadScene("UI");
     }
 
@@ -196,6 +197,14 @@ public class Pauser : MonoBehaviour
         if (PauseButton == null)
             return;
 
+        // Never show the pause button on Android TV / Fire TV.
+        if (isTVPlatform)
+        {
+            PauseButton.SetActive(false);
+            return;
+        }
+
+        // Show on non-TV platforms only when pausing is allowed.
         bool shouldShow =
             !PauseLocked &&
             !instructionPanelLock &&

@@ -39,6 +39,9 @@ public class MainMenu : MonoBehaviour
     {
         instance = this;
         Time.timeScale = 1f;
+
+        AudioManagerPause.Initialize();
+
     }
     private void OnEnable()
     {
@@ -120,6 +123,8 @@ public class MainMenu : MonoBehaviour
         // 🟢 Normal fresh launch
         SaveScript.cameFromGameplay = false;
         mainMenu.SetActive(true);
+        SaveScript.cameFromGameplay = false;
+        mainMenu.SetActive(true);
     }
 
     // =====================
@@ -138,6 +143,9 @@ public class MainMenu : MonoBehaviour
         storeMenu.SetActive(false);
         settingsMenu.SetActive(false);
         subscriptionPanel.SetActive(false);
+
+        PlayMainMenuMusic();
+
     }
 
     // =====================
@@ -159,6 +167,7 @@ public class MainMenu : MonoBehaviour
     {
         settingsMenu.SetActive(false);
         mainMenu.SetActive(true);
+        PlayMainMenuMusic();
     }
 
     // =====================
@@ -177,6 +186,7 @@ public class MainMenu : MonoBehaviour
     {
         carSelectionMenu.SetActive(false);
         mainMenu.SetActive(true);
+        PlayMainMenuMusic();
     }
 
     // =====================
@@ -212,16 +222,80 @@ public class MainMenu : MonoBehaviour
         );
     }
 
+
     public void Sound_on()
     {
         AudioManagerPause.IsMuted = !AudioManagerPause.IsMuted;
         UpdateSoundIcon();
+        UpdateMainMenuMusic();
     }
-    void UpdateSoundIcon()
+
+    private void UpdateSoundIcon()
     {
         if (sound_ != null)
-            sound_.sprite = AudioManagerPause.IsMuted ? sound_off : sound_on;
+        {
+            sound_.sprite = AudioManagerPause.IsMuted
+                ? sound_off
+                : sound_on;
+        }
     }
+
+    public void UpdateMainMenuMusic()
+    {
+        if (AudioManagerPause.IsMuted)
+            return;
+
+        // Do not play main-menu music behind the subscription panel.
+        if (subscriptionPanel != null &&
+            subscriptionPanel.activeInHierarchy)
+            return;
+
+        AudioSource music = null;
+
+        // Find the main-menu music source from the subscription UI.
+        SubscriptionPanel_UI subscriptionUI =
+            subscriptionPanel != null
+                ? subscriptionPanel.GetComponent<SubscriptionPanel_UI>()
+                : null;
+
+        if (subscriptionUI != null)
+            music = subscriptionUI.mainMenuAudioPlayer;
+
+        if (music != null && !music.isPlaying)
+            music.Play();
+    }
+
+
+    public void PlayMainMenuMusic()
+    {
+        AudioManagerPause.Initialize();
+
+        if (AudioManagerPause.IsMuted)
+            return;
+
+        // Never play menu music behind the subscription panel.
+        if (subscriptionPanel != null &&
+            subscriptionPanel.activeInHierarchy)
+            return;
+
+        if (mainMenu == null || !mainMenu.activeInHierarchy)
+            return;
+
+        SubscriptionPanel_UI subscriptionUI =
+            subscriptionPanel != null
+                ? subscriptionPanel.GetComponent<SubscriptionPanel_UI>()
+                : null;
+
+        if (subscriptionUI == null)
+            return;
+
+        AudioSource music = subscriptionUI.mainMenuAudioPlayer;
+
+        if (music != null && !music.isPlaying)
+            music.Play();
+    }
+
+
     void DisableAllMenus()
     {
         mainMenu.SetActive(false);

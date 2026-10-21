@@ -64,6 +64,10 @@ public class GhostDropTrigger : MonoBehaviour
     private RCC_CarControllerV3 playerCar;
     private Rigidbody playerRigidbody;
 
+    // Position and rotation captured before the car stops.
+    private Vector3 carLastPosition;
+    private Quaternion carLastRotation;
+
     private bool dropStarted;
     private bool originalCanControl;
 
@@ -80,34 +84,32 @@ public class GhostDropTrigger : MonoBehaviour
         if (dropStarted)
             return;
 
-        // First verify that the entering collider belongs to a car.
         RCC_CarControllerV3 car =
             other.GetComponentInParent<RCC_CarControllerV3>();
 
         if (car == null)
             return;
 
-        // Lock pause only when the player car enters this trigger.
         Pauser.LockPause();
 
         playerCar = car;
         playerRigidbody = playerCar.GetComponent<Rigidbody>();
+
+        // Remember the car's exact position before the smooth stop.
+        carLastPosition = playerCar.transform.position;
+        carLastRotation = playerCar.transform.rotation;
 
         dropStarted = true;
         originalCanControl = playerCar.canControl;
 
         HideArrow();
 
-        // Activate the cinematic camera.
         if (GameManager.Instance != null)
-        {
             GameManager.Instance.ActivateCinematicCamera(playerCar);
-        }
 
         if (disableAllEffectsOnDrop)
             DisableAllPassengerEffects();
 
-        // Start the drop sequence only once.
         dropRoutine = StartCoroutine(DropPassenger());
     }
 
@@ -169,10 +171,12 @@ public class GhostDropTrigger : MonoBehaviour
 
             if (playerRigidbody != null)
             {
-                Vector3 v = playerRigidbody.velocity;
+                Vector3 velocity = playerRigidbody.velocity;
 
-                playerRigidbody.velocity =
-                    new Vector3(v.x * ratio, v.y, v.z * ratio);
+                playerRigidbody.velocity = new Vector3(
+                    velocity.x * ratio,
+                    velocity.y,
+                    velocity.z * ratio);
 
                 playerRigidbody.angularVelocity *= ratio;
             }
@@ -183,10 +187,10 @@ public class GhostDropTrigger : MonoBehaviour
 
         if (playerRigidbody != null)
         {
-            Vector3 v = playerRigidbody.velocity;
+            Vector3 velocity = playerRigidbody.velocity;
 
             playerRigidbody.velocity =
-                new Vector3(0f, v.y, 0f);
+                new Vector3(0f, velocity.y, 0f);
 
             playerRigidbody.angularVelocity = Vector3.zero;
         }
@@ -198,14 +202,19 @@ public class GhostDropTrigger : MonoBehaviour
 
     private void DisableAllPassengerEffects()
     {
+        GhostCarEffect.DeactivateActiveGhostEffect();
+
         if (playerCar == null)
             return;
 
-        GhostCarEffect ghost =
-            playerCar.GetComponentInChildren<GhostCarEffect>(true);
+        GhostCarEffect[] ghostEffects =
+            playerCar.GetComponentsInChildren<GhostCarEffect>(true);
 
-        if (ghost != null)
-            ghost.DeactivateGhostEffect();
+        foreach (GhostCarEffect ghost in ghostEffects)
+        {
+            if (ghost != null)
+                ghost.DeactivateGhostEffect();
+        }
 
         GhostOrbit[] orbitGhosts =
             playerCar.GetComponentsInChildren<GhostOrbit>(true);
@@ -213,7 +222,10 @@ public class GhostDropTrigger : MonoBehaviour
         foreach (GhostOrbit orbit in orbitGhosts)
         {
             if (orbit != null)
+            {
+                orbit.gameObject.SetActive(false);
                 Destroy(orbit.gameObject);
+            }
         }
 
         WitchCarEffect witch =
@@ -292,8 +304,6 @@ public class GhostDropTrigger : MonoBehaviour
                 this);
 
             yield return ResumeControls();
-
-            // Allow pausing again if the drop cannot proceed.
             Pauser.UnlockPause();
 
             dropRoutine = null;
@@ -302,19 +312,19 @@ public class GhostDropTrigger : MonoBehaviour
 
         Transform spawnPoint = FindPlayerCarSpawnPoint();
 
-        Vector3 spawnPosition = spawnPoint != null
-            ? spawnPoint.position
-            : fallbackSpawnPoint != null
-                ? fallbackSpawnPoint.position
-                : playerCar.transform.position;
+        // Spawn at the car's saved position, not at the spawn point.
+        Vector3 spawnPosition = carLastPosition;
 
-        Quaternion baseRotation = useSpawnPointRotation
-            ? (spawnPoint != null
-                ? spawnPoint.rotation
-                : fallbackSpawnPoint != null
-                    ? fallbackSpawnPoint.rotation
-                    : Quaternion.identity)
-            : Quaternion.identity;
+        // Match the car's orientation by default.
+        Quaternion baseRotation = carLastRotation;
+
+        if (useSpawnPointRotation)
+        {
+            if (spawnPoint != null)
+                baseRotation = spawnPoint.rotation;
+            else if (fallbackSpawnPoint != null)
+                baseRotation = fallbackSpawnPoint.rotation;
+        }
 
         Quaternion initialRotation =
             baseRotation * Quaternion.Euler(spawnRotationOffset);
@@ -371,15 +381,11 @@ public class GhostDropTrigger : MonoBehaviour
             yield return new WaitForSeconds(finishNotificationDelay);
 
         if (GameManager.Instance != null)
-        {
             GameManager.Instance.PassengerDropped(playerCar);
-        }
         else
-        {
             Debug.LogWarning(
                 "GhostDropTrigger: GameManager instance not found.",
                 this);
-        }
 
         yield return ResumeControls();
 
@@ -418,8 +424,8 @@ public class GhostDropTrigger : MonoBehaviour
                 targetRotation =
                     Quaternion.LookRotation(
                         lookDirection.normalized,
-                        Vector3.up)
-                    * Quaternion.Euler(movementRotationOffset);
+                        Vector3.up) *
+                    Quaternion.Euler(movementRotationOffset);
 
                 hasTargetRotation = true;
             }

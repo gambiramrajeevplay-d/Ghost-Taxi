@@ -1,4 +1,3 @@
-
 using Script;
 using System.Collections;
 using TMPro;
@@ -11,8 +10,8 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
 
     [Header("Win / Lose Panels")]
-    public GameObject winPanel;
-    public GameObject losePanel;
+    [SerializeField] private GameObject winPanel;
+    [SerializeField] private GameObject losePanel;
 
     [Header("Level GameObject")]
     [SerializeField] private string levelGameObjectName = "Level";
@@ -56,29 +55,39 @@ public class GameManager : MonoBehaviour
 
         Instance = this;
 
-        // Find the level GameObject by name.
+        // Find the gameplay level.
         levelGameObject = GameObject.Find(levelGameObjectName);
 
         if (levelGameObject == null)
         {
             Debug.LogWarning(
-                $"GameManager: GameObject named '{levelGameObjectName}' was not found.",
+                $"GameManager: GameObject '{levelGameObjectName}' was not found.",
                 this);
         }
 
+        // Set up audio.
         if (audioSource == null)
             audioSource = GetComponent<AudioSource>();
 
-        audioSource.playOnAwake = false;
+        if (audioSource != null)
+            audioSource.playOnAwake = false;
 
+        // Find the RCC camera.
         if (rccCamera == null)
             rccCamera = FindObjectOfType<RCC_Camera>();
 
+        // Hide result panels initially.
         if (winPanel != null)
             winPanel.SetActive(false);
+        else
+            Debug.LogWarning("GameManager: Win Panel is not assigned.", this);
 
         if (losePanel != null)
             losePanel.SetActive(false);
+        else
+            Debug.LogWarning("GameManager: Lose Panel is not assigned.", this);
+
+        Debug.Log("GameManager: Initialized successfully.", this);
     }
 
     // Called when the passenger has been dropped off.
@@ -90,9 +99,14 @@ public class GameManager : MonoBehaviour
     public void PassengerDropped(RCC_CarControllerV3 playerCar)
     {
         if (resultStarted)
+        {
+            Debug.Log("GameManager: PassengerDropped ignored; result already started.", this);
             return;
+        }
 
-        PlayWinCinematic(playerCar);
+        Debug.Log("GameManager: Passenger dropped. Starting win sequence.", this);
+
+        ActivateCinematicCamera(playerCar);
         WinGame();
     }
 
@@ -106,8 +120,19 @@ public class GameManager : MonoBehaviour
 
         if (rccCamera == null)
         {
+            Debug.LogWarning("GameManager: RCC_Camera was not found.", this);
+            return;
+        }
+
+        RCC_CinematicCamera cinematicCamera =
+            FindObjectOfType<RCC_CinematicCamera>();
+
+        if (cinematicCamera == null)
+        {
             Debug.LogWarning(
-                "GameManager: RCC_Camera was not found.", this);
+                "GameManager: RCC_CinematicCamera was not found. " +
+                "Check the RCC cinematic camera setup.",
+                this);
             return;
         }
 
@@ -115,6 +140,8 @@ public class GameManager : MonoBehaviour
             rccCamera.SetTarget(playerCar.gameObject);
 
         rccCamera.ChangeCamera(RCC_Camera.CameraMode.CINEMATIC);
+
+        Debug.Log("GameManager: Cinematic camera activated.", this);
     }
 
     public void WinGame()
@@ -125,7 +152,9 @@ public class GameManager : MonoBehaviour
         resultStarted = true;
         Time.timeScale = 1f;
 
-        // Award coins.
+        Debug.Log("GameManager: WinGame() called.", this);
+
+        // Award win coins.
         GiveCoins(winCoinsReward);
         UpdateCoinsText(winCoinsText, winCoinsReward);
 
@@ -135,8 +164,8 @@ public class GameManager : MonoBehaviour
         // Play win audio.
         PlayResultAudio(winAudio);
 
-        // Show the win panel after the delay.
-        StartCoroutine(ShowResultPanel(winPanel));
+        // Display the win panel after the delay.
+        StartCoroutine(ShowResultPanel(winPanel, "WIN"));
     }
 
     public void LoseGame()
@@ -147,6 +176,8 @@ public class GameManager : MonoBehaviour
         resultStarted = true;
         Time.timeScale = 1f;
 
+        Debug.Log("GameManager: LoseGame() called.", this);
+
         // Award lose coins if configured.
         if (loseCoinsReward > 0)
             GiveCoins(loseCoinsReward);
@@ -156,14 +187,14 @@ public class GameManager : MonoBehaviour
         // Play lose audio.
         PlayResultAudio(loseAudio);
 
-        // Show the lose panel after the delay.
-        StartCoroutine(ShowResultPanel(losePanel));
+        // Display the lose panel after the delay.
+        StartCoroutine(ShowResultPanel(losePanel, "LOSE"));
     }
 
     private void UnlockNextLevel()
     {
-        int currentLevel =
-            PlayerPrefs.GetInt(StringsData.playerLevel, 1);
+        int currentLevel = PlayerPrefs.GetInt(
+            StringsData.playerLevel, 1);
 
         int nextLevel = currentLevel + 1;
 
@@ -172,29 +203,134 @@ public class GameManager : MonoBehaviour
 
         Debug.Log(
             $"GameManager: Level {currentLevel} completed. " +
-            $"Level {nextLevel} is now unlocked.");
+            $"Level {nextLevel} is now unlocked.",
+            this);
     }
 
-    private IEnumerator ShowResultPanel(GameObject panel)
+    private IEnumerator ShowResultPanel(GameObject panel, string resultName)
     {
-        yield return new WaitForSeconds(
+        Debug.Log(
+            $"GameManager: Preparing {resultName} panel.", this);
+
+        // Use unscaled time so the delay does not depend on timeScale.
+        yield return new WaitForSecondsRealtime(
             Mathf.Max(0f, resultPanelDelay));
 
-        // Disable the level before showing the result panel.
-        if (levelGameObject != null)
+        // Disable gameplay without accidentally disabling a result
+        // panel that is nested inside the Level hierarchy.
+        DisableLevelExceptResultPanels();
+
+        // Ensure the game is not paused when displaying results.
+        Time.timeScale = 1f;
+
+        if (panel == null)
         {
-            levelGameObject.SetActive(false);
+            Debug.LogError(
+                $"GameManager: {resultName} panel is not assigned. " +
+                "Assign it in the Inspector.",
+                this);
+            yield break;
         }
 
-        if (panel != null)
+        // Explicitly activate the result panel.
+        panel.SetActive(true);
+
+        Canvas panelCanvas = panel.GetComponentInParent<Canvas>(true);
+
+        if (panelCanvas != null)
         {
-            panel.SetActive(true);
+            // Enable the Canvas in case it was disabled.
+            panelCanvas.enabled = true;
+
+            // Ensure the panel is drawn after other UI in its Canvas.
+            panelCanvas.overrideSorting = true;
+            panelCanvas.sortingOrder = Mathf.Max(
+                panelCanvas.sortingOrder, 100);
         }
-        else
+
+        Debug.Log(
+            $"GameManager: {resultName} panel activated. " +
+            $"Active in hierarchy: {panel.activeInHierarchy}.",
+            this);
+
+        if (!panel.activeInHierarchy)
+        {
+            Debug.LogError(
+                $"GameManager: {resultName} panel is still inactive " +
+                "in the hierarchy. Check its parent objects.",
+                this);
+        }
+    }
+
+    private void DisableLevelExceptResultPanels()
+    {
+        if (levelGameObject == null)
         {
             Debug.LogWarning(
-                "GameManager: Result panel is not assigned.", this);
+                "GameManager: Cannot disable Level because it was not found.",
+                this);
+            return;
         }
+
+        Transform levelTransform = levelGameObject.transform;
+
+        bool winPanelInsideLevel =
+            winPanel != null &&
+            winPanel.transform.IsChildOf(levelTransform);
+
+        bool losePanelInsideLevel =
+            losePanel != null &&
+            losePanel.transform.IsChildOf(levelTransform);
+
+        // If neither result panel is inside Level, disable the
+        // entire gameplay object as usual.
+        if (!winPanelInsideLevel && !losePanelInsideLevel)
+        {
+            levelGameObject.SetActive(false);
+
+            Debug.Log(
+                "GameManager: Level disabled successfully.", this);
+            return;
+        }
+
+        // A result panel is nested inside Level. Disabling Level itself
+        // would hide that panel. Disable gameplay branches individually,
+        // keeping the parent branches of the result panels active.
+        Debug.LogWarning(
+            "GameManager: A result panel is inside Level. " +
+            "Disabling gameplay children while preserving result UI.",
+            this);
+
+        for (int i = 0; i < levelTransform.childCount; i++)
+        {
+            Transform child = levelTransform.GetChild(i);
+
+            bool containsWinPanel =
+                winPanelInsideLevel &&
+                IsSameOrAncestorOf(child, winPanel.transform);
+
+            bool containsLosePanel =
+                losePanelInsideLevel &&
+                IsSameOrAncestorOf(child, losePanel.transform);
+
+            if (containsWinPanel || containsLosePanel)
+            {
+                Debug.Log(
+                    $"GameManager: Preserving result UI branch '{child.name}'.",
+                    child);
+                continue;
+            }
+
+            child.gameObject.SetActive(false);
+        }
+    }
+
+    private bool IsSameOrAncestorOf(
+        Transform possibleAncestor,
+        Transform target)
+    {
+        return target == possibleAncestor ||
+               target.IsChildOf(possibleAncestor);
     }
 
     private void GiveCoins(int amount)
@@ -202,7 +338,7 @@ public class GameManager : MonoBehaviour
         if (amount <= 0)
             return;
 
-        // Prefer the currency manager.
+        // Prefer the project's currency manager.
         if (CurrecnyManager.instance != null)
         {
             CurrecnyManager.instance.AddCurrency(amount);
@@ -222,7 +358,14 @@ public class GameManager : MonoBehaviour
     private void UpdateCoinsText(TMP_Text coinsText, int amount)
     {
         if (coinsText != null)
+        {
             coinsText.text = amount.ToString();
+        }
+        else
+        {
+            Debug.LogWarning(
+                "GameManager: Reward TMP_Text is not assigned.", this);
+        }
     }
 
     private void PlayResultAudio(AudioClip clip)
@@ -244,42 +387,10 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene("Level_Selection");
     }
 
-    private void PlayWinCinematic(RCC_CarControllerV3 playerCar)
-    {
-        if (!playCinematicOnWin)
-            return;
-
-        if (rccCamera == null)
-            rccCamera = FindObjectOfType<RCC_Camera>();
-
-        if (rccCamera == null)
-        {
-            Debug.LogWarning(
-                "GameManager: RCC_Camera was not found.", this);
-            return;
-        }
-
-        RCC_CinematicCamera cinematicCamera =
-            FindObjectOfType<RCC_CinematicCamera>();
-
-        if (cinematicCamera == null)
-        {
-            Debug.LogWarning(
-                "GameManager: RCC_CinematicCamera was not found. " +
-                "Check that the RCC cinematic camera is configured.",
-                this);
-            return;
-        }
-
-        if (playerCar != null)
-            rccCamera.SetTarget(playerCar.gameObject);
-
-        rccCamera.ChangeCamera(RCC_Camera.CameraMode.CINEMATIC);
-    }
-
     private void OnDestroy()
     {
         if (Instance == this)
             Instance = null;
     }
+
 }

@@ -7,7 +7,7 @@ public class BackButtonHandler : MonoBehaviour
 {
     public GameObject exitPopup;
     //public string homeSceneName = "SpalshScreen"; // Mee Home scene name
-
+    public AudioSource sound;
     void Update()
     {
         if (Input.GetKeyDown(KeyCode.Escape))
@@ -15,7 +15,7 @@ public class BackButtonHandler : MonoBehaviour
 
 
             exitPopup.SetActive(true); // Show popup
-
+            sound.Pause();
 
         }
     }
@@ -28,5 +28,6 @@ public class BackButtonHandler : MonoBehaviour
     public void OnClickNo()
     {
         exitPopup.SetActive(false);
+        sound.Play();
     }
 }

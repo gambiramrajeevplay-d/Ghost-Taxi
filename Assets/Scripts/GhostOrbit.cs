@@ -2,82 +2,131 @@ using UnityEngine;
 
 public class GhostOrbit : MonoBehaviour
 {
-    // Shared by all ghosts so they stay evenly spaced.
-    private static float sharedAngle;
-    private static int lastFrame = -1;
+    private const int GHOST_COUNT = 4;
 
-    private bool initialized = false;
-
+    private bool initialized;
     private int index;
-    private int count = 1;
-    private float radius, height, speed;
+
+    private float radius;
+    private float height;
+    private float speed;
+
     private bool faceCenter;
-    private float floatHeight, floatSpeed;
+    private float floatHeight;
+    private float floatSpeed;
+
     private bool enableSway;
-    private float swayAmount, swaySpeed;
+    private float swayAmount;
+    private float swaySpeed;
     private float phase;
 
-    public void Init(int index, int count,
-                     float radius, float height, float speed,
-                     bool faceCenter,
-                     float floatHeight, float floatSpeed,
-                     bool enableSway, float swayAmount, float swaySpeed)
+    private Transform orbitCenter;
+    private float currentAngle;
+
+    public void Init(
+        int index,
+        int count,
+        float radius,
+        float height,
+        float speed,
+        bool faceCenter,
+        float floatHeight,
+        float floatSpeed,
+        bool enableSway,
+        float swayAmount,
+        float swaySpeed)
     {
-        this.index = index;
-        this.count = Mathf.Max(1, count);
+        this.index = Mathf.Clamp(index, 0, GHOST_COUNT - 1);
+
         this.radius = radius;
         this.height = height;
         this.speed = speed;
+
         this.faceCenter = faceCenter;
         this.floatHeight = floatHeight;
         this.floatSpeed = floatSpeed;
+
         this.enableSway = enableSway;
         this.swayAmount = swayAmount;
         this.swaySpeed = swaySpeed;
 
+        orbitCenter = transform.parent;
+
+        currentAngle = (360f / GHOST_COUNT) * this.index;
         phase = Random.Range(0f, Mathf.PI * 2f);
 
-        if (index == 0)
-            sharedAngle = 0f;
+        initialized = orbitCenter != null;
 
-        initialized = true;
+        if (!initialized)
+        {
+            Debug.LogWarning(
+                "GhostOrbit: No parent transform found.",
+                this);
+        }
     }
 
     private void Update()
     {
-        // Ignore any copy that was never initialized (prevents NaN positions).
-        if (!initialized)
+        if (!initialized || orbitCenter == null)
             return;
 
-        // Advance the shared angle once per frame.
-        if (lastFrame != Time.frameCount)
+        // Rotate around the world Y-axis.
+        currentAngle += speed * Time.deltaTime;
+
+        float radians = currentAngle * Mathf.Deg2Rad;
+
+        Vector3 flatOffset = new Vector3(
+            Mathf.Cos(radians) * radius,
+            0f,
+            Mathf.Sin(radians) * radius);
+
+        float bob =
+            Mathf.Sin(Time.time * floatSpeed + phase) *
+            floatHeight;
+
+        // Keep the orbit horizontal, regardless of car tilt.
+        Vector3 targetPosition =
+            orbitCenter.position +
+            flatOffset +
+            Vector3.up * (height + bob);
+
+        transform.position = targetPosition;
+
+        // Calculate the ghost's upright rotation.
+        Quaternion targetRotation =
+            Quaternion.Euler(0f, currentAngle + 90f, 0f);
+
+        if (faceCenter)
         {
-            lastFrame = Time.frameCount;
-            sharedAngle += speed * Time.deltaTime;
+            Vector3 direction =
+                orbitCenter.position - targetPosition;
+
+            direction.y = 0f;
+
+            if (direction.sqrMagnitude > 0.001f)
+            {
+                targetRotation = Quaternion.LookRotation(
+                    direction.normalized,
+                    Vector3.up);
+            }
         }
 
-        float angle = (360f / count) * index + sharedAngle;
-        float rad = angle * Mathf.Deg2Rad;
-
-        Vector3 flat = new Vector3(
-            Mathf.Cos(rad) * radius, 0f, Mathf.Sin(rad) * radius);
-
-        float bob = Mathf.Sin(Time.time * floatSpeed + phase) * floatHeight;
-
-        // Local values, so the ghost moves with the player car.
-        transform.localPosition = flat + Vector3.up * (height + bob);
-
-        Quaternion rot = Quaternion.identity;
-
-        if (faceCenter && flat.sqrMagnitude > 0.001f)
-            rot = Quaternion.LookRotation(-flat);
-
+        // Add gentle rocking without changing the orbit axis.
         if (enableSway)
         {
-            float sway = Mathf.Sin(Time.time * floatSpeed * swaySpeed + phase) * swayAmount;
-            rot *= Quaternion.Euler(0f, 0f, sway);
+            float sway =
+                Mathf.Sin(
+                    Time.time * floatSpeed * swaySpeed + phase) *
+                swayAmount;
+
+            targetRotation *= Quaternion.Euler(0f, 0f, sway);
         }
 
-        transform.localRotation = rot;
+        transform.rotation = targetRotation;
+    }
+
+    private void OnDisable()
+    {
+        initialized = false;
     }
 }

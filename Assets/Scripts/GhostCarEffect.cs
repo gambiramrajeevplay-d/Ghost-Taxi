@@ -1,4 +1,3 @@
-
 using UnityEngine;
 
 public class GhostCarEffect : MonoBehaviour
@@ -49,7 +48,6 @@ public class GhostCarEffect : MonoBehaviour
 
     private GameObject[] ghosts;
     private float[] phaseOffsets;
-    private Quaternion[] initialRotations;
 
     private float orbitAngle;
     private float orbitSpeedFactor = 1f;
@@ -66,19 +64,18 @@ public class GhostCarEffect : MonoBehaviour
 
         if (orbitOnlyWhenMoving)
         {
-            float speed = playerRigidbody != null
+            float currentSpeed = playerRigidbody != null
                 ? playerRigidbody.velocity.magnitude
                 : 0f;
 
             targetFactor =
-                speed > movingSpeedThreshold ? 1f : 0f;
+                currentSpeed > movingSpeedThreshold ? 1f : 0f;
         }
 
         orbitSpeedFactor = Mathf.MoveTowards(
             orbitSpeedFactor,
             targetFactor,
-            orbitBlendSpeed * Time.deltaTime
-        );
+            orbitBlendSpeed * Time.deltaTime);
 
         orbitAngle +=
             rotationSpeed * orbitSpeedFactor * Time.deltaTime;
@@ -93,55 +90,61 @@ public class GhostCarEffect : MonoBehaviour
             float radians =
                 (angleStep * i + orbitAngle) * Mathf.Deg2Rad;
 
-            // Orbit around the car using its local XZ plane.
+            // Always orbit in the world XZ plane.
             Vector3 flatOffset = new Vector3(
                 Mathf.Cos(radians) * orbitRadius,
                 0f,
-                Mathf.Sin(radians) * orbitRadius
-            );
+                Mathf.Sin(radians) * orbitRadius);
 
-            float bob = Mathf.Sin(
-                Time.time * floatSpeed + phaseOffsets[i]
-            ) * floatHeight;
+            float bob =
+                Mathf.Sin(Time.time * floatSpeed + phaseOffsets[i]) *
+                floatHeight;
 
             Transform ghostTransform = ghosts[i].transform;
 
-            ghostTransform.localPosition =
-                flatOffset + Vector3.up * (orbitHeight + bob);
+            ghostTransform.position =
+                player.position +
+                flatOffset +
+                Vector3.up * (orbitHeight + bob);
 
-            Quaternion rotation = initialRotations[i];
+            Quaternion rotation =
+                Quaternion.Euler(ghostRotationOffset);
 
             if (faceCenter)
             {
-                Vector3 direction = -flatOffset;
+                Vector3 direction =
+                    player.position - ghostTransform.position;
+
                 direction.y = 0f;
 
                 if (direction.sqrMagnitude > 0.001f)
                 {
-                    rotation = Quaternion.LookRotation(
-                        direction.normalized,
-                        Vector3.up
-                    ) * Quaternion.Euler(ghostRotationOffset);
+                    rotation =
+                        Quaternion.LookRotation(
+                            direction.normalized,
+                            Vector3.up) *
+                        Quaternion.Euler(ghostRotationOffset);
                 }
             }
 
             if (enableSway)
             {
-                float sway = Mathf.Sin(
-                    Time.time * floatSpeed * swaySpeed
-                    + phaseOffsets[i]
-                ) * swayAmount;
+                float sway =
+                    Mathf.Sin(
+                        Time.time * floatSpeed * swaySpeed +
+                        phaseOffsets[i]) *
+                    swayAmount;
 
                 rotation *= Quaternion.Euler(0f, 0f, sway);
             }
 
-            ghostTransform.localRotation = rotation;
+            ghostTransform.rotation = rotation;
         }
     }
 
     public void ActivateGhostEffect()
     {
-        // Prevent duplicate effects from multiple instances.
+        // Do not allow two active effects to spawn ghost sets.
         if (activeEffect != null && activeEffect != this)
         {
             if (activeEffect.effectActive)
@@ -157,8 +160,7 @@ public class GhostCarEffect : MonoBehaviour
         {
             Debug.LogWarning(
                 "GhostCarEffect: Assign the ghost prefab.",
-                this
-            );
+                this);
             return;
         }
 
@@ -169,8 +171,7 @@ public class GhostCarEffect : MonoBehaviour
         {
             Debug.LogWarning(
                 "GhostCarEffect: Player tag not found.",
-                this
-            );
+                this);
             return;
         }
 
@@ -183,8 +184,6 @@ public class GhostCarEffect : MonoBehaviour
         if (playerRigidbody == null)
             playerRigidbody = playerObject.GetComponent<Rigidbody>();
 
-        // Remove ghosts left by a previous activation of this
-        // system before creating the new set.
         RemovePreviousGhosts();
 
         effectActive = true;
@@ -205,16 +204,14 @@ public class GhostCarEffect : MonoBehaviour
 
     private void SpawnGhosts()
     {
+        // The array size is fixed: exactly four ghosts.
         ghosts = new GameObject[GHOST_COUNT];
         phaseOffsets = new float[GHOST_COUNT];
-        initialRotations = new Quaternion[GHOST_COUNT];
 
         float angleStep = 360f / GHOST_COUNT;
 
         for (int i = 0; i < GHOST_COUNT; i++)
         {
-            // Parent each ghost to the player so it follows
-            // the car automatically.
             GameObject ghost = Instantiate(ghostPrefab, player);
 
             ghost.name = "OrbitGhost_" + i;
@@ -225,15 +222,16 @@ public class GhostCarEffect : MonoBehaviour
             if (movement != null)
                 movement.enabled = false;
 
-            // Disable colliders and physics on the visual ghosts.
-            foreach (Collider col in
-                     ghost.GetComponentsInChildren<Collider>(true))
-            {
-                col.enabled = false;
-            }
+            Collider[] colliders =
+                ghost.GetComponentsInChildren<Collider>(true);
 
-            foreach (Rigidbody rb in
-                     ghost.GetComponentsInChildren<Rigidbody>(true))
+            foreach (Collider col in colliders)
+                col.enabled = false;
+
+            Rigidbody[] rigidbodies =
+                ghost.GetComponentsInChildren<Rigidbody>(true);
+
+            foreach (Rigidbody rb in rigidbodies)
             {
                 rb.isKinematic = true;
                 rb.useGravity = false;
@@ -242,19 +240,16 @@ public class GhostCarEffect : MonoBehaviour
             phaseOffsets[i] =
                 Random.Range(0f, Mathf.PI * 2f);
 
-            initialRotations[i] =
-                Quaternion.Euler(ghostRotationOffset);
-
             float radians = angleStep * i * Mathf.Deg2Rad;
 
             Vector3 offset = new Vector3(
                 Mathf.Cos(radians) * orbitRadius,
                 orbitHeight,
-                Mathf.Sin(radians) * orbitRadius
-            );
+                Mathf.Sin(radians) * orbitRadius);
 
-            ghost.transform.localPosition = offset;
-            ghost.transform.localRotation = initialRotations[i];
+            ghost.transform.position = player.position + offset;
+            ghost.transform.rotation =
+                Quaternion.Euler(ghostRotationOffset);
 
             ghosts[i] = ghost;
             ghost.SetActive(true);
@@ -263,8 +258,9 @@ public class GhostCarEffect : MonoBehaviour
 
     private void RemovePreviousGhosts()
     {
-        // Only remove ghosts belonging to this effect.
-        // Do not delete unrelated GhostOrbit objects.
+        if (player == null)
+            return;
+
         Transform[] children =
             player.GetComponentsInChildren<Transform>(true);
 
@@ -273,8 +269,12 @@ public class GhostCarEffect : MonoBehaviour
             if (child == player)
                 continue;
 
-            if (child.name.StartsWith("OrbitGhost_"))
+            if (child.name.StartsWith("OrbitGhost_") ||
+                child.GetComponent<GhostOrbit>() != null)
+            {
+                child.gameObject.SetActive(false);
                 Destroy(child.gameObject);
+            }
         }
     }
 
@@ -308,8 +308,8 @@ public class GhostCarEffect : MonoBehaviour
         {
             PlayGhostSound();
 
-            nextSoundTime = Time.time +
-                Mathf.Max(0.1f, soundInterval);
+            nextSoundTime =
+                Time.time + Mathf.Max(0.1f, soundInterval);
         }
     }
 
@@ -322,7 +322,19 @@ public class GhostCarEffect : MonoBehaviour
             SetupAudioSource();
 
         if (ghostAudioSource != null)
-            ghostAudioSource.PlayOneShot(ghostSound, soundVolume);
+        {
+            ghostAudioSource.PlayOneShot(
+                ghostSound,
+                soundVolume);
+        }
+    }
+
+    // The drop trigger can call this even if it cannot find
+    // the GhostCarEffect component directly on the car.
+    public static void DeactivateActiveGhostEffect()
+    {
+        if (activeEffect != null)
+            activeEffect.DeactivateGhostEffect();
     }
 
     public void DeactivateGhostEffect()
@@ -358,17 +370,21 @@ public class GhostCarEffect : MonoBehaviour
             for (int i = 0; i < ghosts.Length; i++)
             {
                 if (ghosts[i] != null)
+                {
+                    ghosts[i].SetActive(false);
                     Destroy(ghosts[i]);
+                }
             }
         }
 
         ghosts = null;
         phaseOffsets = null;
-        initialRotations = null;
     }
 
     private void OnDestroy()
     {
+        effectActive = false;
+
         DestroyGhosts();
 
         if (ghostAudioSource != null)

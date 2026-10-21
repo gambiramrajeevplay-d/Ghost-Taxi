@@ -5,42 +5,24 @@ using System.Collections.Generic;
 public class VampireTeleportEffect : MonoBehaviour
 {
     [Header("Car References")]
-    [Tooltip("Assign the car's visual mesh/model child, NOT the RCC physics root.")]
+    [Tooltip("Assign the car's visual mesh/model child, not the RCC physics root.")]
     [SerializeField] private Transform visualRoot;
 
-    [Header("Wave Delays")]
-    [Tooltip("Delay before each wave starts. Example: 5, 7, 10.")]
-    [SerializeField] private float[] delays = { 5f, 7f, 10f };
-
-    [Tooltip("How many seconds back the car teleports.")]
+    [Header("Teleport Timing")]
+    [SerializeField] private float countdownSeconds = 10f;
     [SerializeField] private float rewindSeconds = 5f;
 
+    private const int MAX_TELEPORTS = 2;
+
     [Header("Squash Effect")]
-    [Tooltip("Total time of the anticipation (squash, then pop bigger).")]
     [SerializeField] private float squashExpandDuration = 0.18f;
-
-    [Tooltip("How much to enlarge before the drop.")]
     [SerializeField] private float squashExpandMultiplier = 1.2f;
-
-    [Tooltip("Compress the visual vertically during anticipation.")]
     [SerializeField] private float squashYMultiplier = 0.72f;
-
-    [Tooltip("Stretch the visual horizontally during anticipation.")]
     [SerializeField] private float squashXZMultiplier = 1.12f;
-
-    [Tooltip("Time to drop from the enlarged pose down to zero.")]
     [SerializeField] private float shrinkDuration = 0.35f;
-
-    [Tooltip("Short pause while invisible at the teleport moment.")]
     [SerializeField] private float hiddenHoldDuration = 0.06f;
-
-    [Tooltip("Time to grow back after teleporting.")]
     [SerializeField] private float growDuration = 0.45f;
-
-    [Tooltip("Strength of the bouncy overshoot while growing back.")]
     [SerializeField] private float growBounce = 1.4f;
-
-    [Tooltip("Strength of the wind-up on the shrink.")]
     [SerializeField] private float shrinkWindUp = 0.8f;
 
     [Header("Ground")]
@@ -53,23 +35,22 @@ public class VampireTeleportEffect : MonoBehaviour
     [SerializeField] private float recordInterval = 0.02f;
 
     [Header("Vampire Audio")]
-    [Tooltip("Sound played when the vampire passenger is picked up.")]
     [SerializeField] private AudioClip vampireSound;
-
-    [Tooltip("Seconds between sound plays.")]
     [SerializeField] private float soundInterval = 10f;
 
     [Range(0f, 1f)]
     [SerializeField] private float soundVolume = 1f;
 
-    [Tooltip("Play the sound immediately when the effect activates.")]
     [SerializeField] private bool playSoundImmediately = true;
 
     [Header("Debug")]
     [SerializeField] private bool logCountdown = false;
 
-    /// <summary>Seconds remaining in the current countdown.</summary>
     public float TimeUntilNextTeleport { get; private set; }
+
+    public int TeleportsCompleted { get; private set; }
+
+    private const float MinScale = 0.0001f;
 
     private class CarSnapshot
     {
@@ -83,16 +64,15 @@ public class VampireTeleportEffect : MonoBehaviour
         }
     }
 
-    private const float MinScale = 0.0001f;
-
     private readonly List<CarSnapshot> history =
         new List<CarSnapshot>();
 
     private RCC_CarControllerV3 playerCar;
     private Rigidbody carRigidbody;
-
     private AudioSource vampireAudioSource;
+
     private float nextSoundTime;
+    private float nextRecordTime;
 
     private Vector3 originalScale;
     private Quaternion originalVisualRotation;
@@ -100,17 +80,30 @@ public class VampireTeleportEffect : MonoBehaviour
     private bool effectActive;
     private bool isTeleporting;
     private bool isGrowing;
-    private bool originalCanControl;
-    private float nextRecordTime;
-
-    private Coroutine teleportLoopRoutine;
-    private Coroutine growRoutine;
-
     private bool carFrozen;
     private bool savedKinematic;
     private RigidbodyInterpolation savedInterpolation;
 
+    private Coroutine teleportLoopRoutine;
+    private Coroutine growRoutine;
+
     private void Awake()
+    {
+        FindCarReferences();
+
+        if (visualRoot == null && playerCar != null)
+        {
+            Debug.LogWarning(
+                "VampireTeleportEffect: Assign Visual Root to the car's model child.",
+                this);
+
+            visualRoot = playerCar.transform;
+        }
+
+        SaveOriginalVisual();
+    }
+
+    private void FindCarReferences()
     {
         playerCar = GetComponent<RCC_CarControllerV3>();
 
@@ -119,19 +112,6 @@ public class VampireTeleportEffect : MonoBehaviour
 
         if (playerCar != null)
             carRigidbody = playerCar.GetComponent<Rigidbody>();
-
-        if (visualRoot == null && playerCar != null)
-        {
-            visualRoot = playerCar.transform;
-
-            Debug.LogWarning(
-                "VampireTeleportEffect: Assign Visual Root to a mesh/model child, not the RCC physics root. " +
-                "Squashing the physics root can affect the vehicle.",
-                this
-            );
-        }
-
-        SaveOriginalVisual();
     }
 
     private void SaveOriginalVisual()
@@ -148,7 +128,6 @@ public class VampireTeleportEffect : MonoBehaviour
         if (!effectActive)
             return;
 
-        // Audio continues during countdowns and teleport animations.
         UpdateVampireAudio();
 
         if (isTeleporting || playerCar == null)
@@ -157,6 +136,7 @@ public class VampireTeleportEffect : MonoBehaviour
         if (Time.time >= nextRecordTime)
         {
             RecordState();
+
             nextRecordTime =
                 Time.time + Mathf.Max(0.01f, recordInterval);
         }
@@ -164,38 +144,33 @@ public class VampireTeleportEffect : MonoBehaviour
         TrimHistory();
     }
 
-    // Call this when the vampire enters the car.
+    // =========================================================
+    // ACTIVATE EFFECT
+    // =========================================================
+
     public void ActivateVampireEffect()
     {
-        if (effectActive)
+        if (effectActive || TeleportsCompleted >= MAX_TELEPORTS)
             return;
+
+        FindCarReferences();
 
         if (playerCar == null)
         {
             Debug.LogWarning(
                 "VampireTeleportEffect: Player car was not found.",
-                this
-            );
+                this);
             return;
         }
 
-        if (delays == null || delays.Length == 0)
-        {
-            Debug.LogWarning(
-                "VampireTeleportEffect: Add at least one delay.",
-                this
-            );
-            return;
-        }
+        SaveOriginalVisual();
 
         effectActive = true;
         isTeleporting = false;
         isGrowing = false;
+        TeleportsCompleted = 0;
+        TimeUntilNextTeleport = Mathf.Max(0f, countdownSeconds);
 
-        SaveOriginalVisual();
-        originalCanControl = playerCar.canControl;
-
-        // Set up the audio when the passenger is picked up.
         SetupAudioSource();
 
         if (playSoundImmediately)
@@ -213,9 +188,9 @@ public class VampireTeleportEffect : MonoBehaviour
         teleportLoopRoutine = StartCoroutine(TeleportLoop());
     }
 
-    // ------------------------------------------------------------
-    // Audio
-    // ------------------------------------------------------------
+    // =========================================================
+    // AUDIO
+    // =========================================================
 
     private void SetupAudioSource()
     {
@@ -227,8 +202,7 @@ public class VampireTeleportEffect : MonoBehaviour
 
         audioObject.transform.SetParent(
             playerCar.transform,
-            false
-        );
+            false);
 
         vampireAudioSource =
             audioObject.AddComponent<AudioSource>();
@@ -268,8 +242,7 @@ public class VampireTeleportEffect : MonoBehaviour
 
         vampireAudioSource.PlayOneShot(
             vampireSound,
-            soundVolume
-        );
+            soundVolume);
     }
 
     private void StopAndDestroyAudio()
@@ -284,24 +257,26 @@ public class VampireTeleportEffect : MonoBehaviour
         nextSoundTime = 0f;
     }
 
-    // ------------------------------------------------------------
-    // Teleport countdown
-    // ------------------------------------------------------------
+    // =========================================================
+    // TWO TELEPORTS ONLY
+    // =========================================================
 
     private IEnumerator TeleportLoop()
     {
-        int index = 0;
-
-        while (effectActive)
+        for (int i = 0; i < MAX_TELEPORTS; i++)
         {
-            float countdown = Mathf.Max(0f, delays[index]);
+            float countdown = Mathf.Max(0f, countdownSeconds);
             float timer = 0f;
-            int lastLoggedSecond = 0;
+
+            TimeUntilNextTeleport = countdown;
 
             while (timer < countdown)
             {
                 if (!effectActive)
+                {
+                    teleportLoopRoutine = null;
                     yield break;
+                }
 
                 timer += Time.deltaTime;
 
@@ -310,33 +285,52 @@ public class VampireTeleportEffect : MonoBehaviour
 
                 if (logCountdown)
                 {
-                    int second = Mathf.FloorToInt(timer);
-
-                    if (second > lastLoggedSecond)
-                    {
-                        lastLoggedSecond = second;
-
-                        Debug.Log(
-                            "Teleport countdown: " +
-                            second + " / " + countdown
-                        );
-                    }
+                    Debug.Log(
+                        "Vampire teleport " + (i + 1) +
+                        "/" + MAX_TELEPORTS +
+                        " | Remaining: " +
+                        Mathf.CeilToInt(TimeUntilNextTeleport),
+                        this);
                 }
 
                 yield return null;
             }
 
             if (!effectActive)
+            {
+                teleportLoopRoutine = null;
                 yield break;
+            }
+
+            TimeUntilNextTeleport = 0f;
 
             yield return StartCoroutine(DoTeleport());
 
             if (!effectActive)
+            {
+                teleportLoopRoutine = null;
                 yield break;
+            }
 
-            index = (index + 1) % delays.Length;
+            while (isGrowing && effectActive)
+                yield return null;
+
+            if (!effectActive)
+            {
+                teleportLoopRoutine = null;
+                yield break;
+            }
+
+            TeleportsCompleted++;
         }
+
+        // Both teleports are complete.
+        FinishEffect();
     }
+
+    // =========================================================
+    // TELEPORT
+    // =========================================================
 
     private IEnumerator DoTeleport()
     {
@@ -351,18 +345,23 @@ public class VampireTeleportEffect : MonoBehaviour
         CarSnapshot target =
             GetSnapshotAtTime(Time.time - rewindSeconds);
 
-        Quaternion carRotationBeforeEffect =
+        Quaternion carRotation =
             playerCar.transform.rotation;
 
+        // Disable controls only during the teleport animation.
         playerCar.canControl = false;
 
         FreezeCar();
 
         yield return StartCoroutine(ExpandVisual());
-        if (!effectActive) yield break;
+
+        if (!effectActive)
+            yield break;
 
         yield return StartCoroutine(ShrinkToZero());
-        if (!effectActive) yield break;
+
+        if (!effectActive)
+            yield break;
 
         if (target != null)
         {
@@ -371,13 +370,12 @@ public class VampireTeleportEffect : MonoBehaviour
             if (carRigidbody != null)
             {
                 carRigidbody.position = destination;
-                carRigidbody.rotation = carRotationBeforeEffect;
+                carRigidbody.rotation = carRotation;
             }
 
             playerCar.transform.SetPositionAndRotation(
                 destination,
-                carRotationBeforeEffect
-            );
+                carRotation);
 
             Physics.SyncTransforms();
             SnapCarToGround();
@@ -386,8 +384,7 @@ public class VampireTeleportEffect : MonoBehaviour
         {
             Debug.LogWarning(
                 "VampireTeleportEffect: No history available to teleport to.",
-                this
-            );
+                this);
         }
 
         ResetVisualRotation();
@@ -398,6 +395,7 @@ public class VampireTeleportEffect : MonoBehaviour
         if (!effectActive)
             yield break;
 
+        // Start a fresh history after teleporting.
         history.Clear();
         RecordState();
 
@@ -406,16 +404,17 @@ public class VampireTeleportEffect : MonoBehaviour
 
         UnfreezeCar();
 
-        // Preserve the original behavior: controls return after teleport.
-        playerCar.canControl = true;
         isTeleporting = false;
+
+        // Restore driving after EACH teleport.
+        RestorePlayerControl();
 
         growRoutine = StartCoroutine(Grow());
     }
 
-    // ------------------------------------------------------------
-    // Visual animation
-    // ------------------------------------------------------------
+    // =========================================================
+    // VISUAL ANIMATION
+    // =========================================================
 
     private IEnumerator ExpandVisual()
     {
@@ -429,10 +428,8 @@ public class VampireTeleportEffect : MonoBehaviour
 
         Vector3 squashScale = new Vector3(
             originalScale.x * Mathf.Max(1f, squashXZMultiplier),
-            originalScale.y * Mathf.Clamp(
-                squashYMultiplier, 0.1f, 1f),
-            originalScale.z * Mathf.Max(1f, squashXZMultiplier)
-        );
+            originalScale.y * Mathf.Clamp(squashYMultiplier, 0.1f, 1f),
+            originalScale.z * Mathf.Max(1f, squashXZMultiplier));
 
         Vector3 expandedScale =
             originalScale * Mathf.Max(1f, squashExpandMultiplier);
@@ -444,17 +441,16 @@ public class VampireTeleportEffect : MonoBehaviour
             originalScale,
             squashScale,
             squashTime,
-            EaseOutCubic
-        );
+            EaseOutCubic);
 
-        if (!effectActive) yield break;
+        if (!effectActive)
+            yield break;
 
         yield return AnimateScale(
             squashScale,
             expandedScale,
             popTime,
-            EaseOutBack05
-        );
+            EaseOutBack05);
     }
 
     private IEnumerator ShrinkToZero()
@@ -471,14 +467,12 @@ public class VampireTeleportEffect : MonoBehaviour
             originalScale * Mathf.Max(1f, squashExpandMultiplier);
 
         Vector3 zeroScale = originalScale * MinScale;
-        float windUp = Mathf.Max(0f, shrinkWindUp);
 
         yield return AnimateScale(
             expandedScale,
             zeroScale,
             duration,
-            t => EaseInBack(t, windUp)
-        );
+            t => EaseInBack(t, Mathf.Max(0f, shrinkWindUp)));
 
         if (visualRoot != null)
             visualRoot.localScale = zeroScale;
@@ -495,14 +489,12 @@ public class VampireTeleportEffect : MonoBehaviour
             visualRoot.localRotation = originalVisualRotation;
 
             Vector3 zeroScale = originalScale * MinScale;
-            float bounce = Mathf.Max(0f, growBounce);
 
             yield return AnimateScale(
                 zeroScale,
                 originalScale,
                 duration,
-                t => EaseOutBack(t, bounce)
-            );
+                t => EaseOutBack(t, Mathf.Max(0f, growBounce)));
 
             if (effectActive)
                 ResetVisual();
@@ -519,6 +511,7 @@ public class VampireTeleportEffect : MonoBehaviour
         System.Func<float, float> ease)
     {
         duration = Mathf.Max(0.0001f, duration);
+
         float elapsed = 0f;
 
         while (elapsed < duration)
@@ -530,17 +523,14 @@ public class VampireTeleportEffect : MonoBehaviour
 
             float t = Mathf.Clamp01(elapsed / duration);
 
-            Vector3 s = Vector3.LerpUnclamped(
-                from,
-                to,
-                ease(t)
-            );
+            Vector3 scale =
+                Vector3.LerpUnclamped(from, to, ease(t));
 
-            s.x = Mathf.Max(MinScale, s.x);
-            s.y = Mathf.Max(MinScale, s.y);
-            s.z = Mathf.Max(MinScale, s.z);
+            scale.x = Mathf.Max(MinScale, scale.x);
+            scale.y = Mathf.Max(MinScale, scale.y);
+            scale.z = Mathf.Max(MinScale, scale.z);
 
-            visualRoot.localScale = s;
+            visualRoot.localScale = scale;
             visualRoot.localRotation = originalVisualRotation;
 
             yield return null;
@@ -558,9 +548,9 @@ public class VampireTeleportEffect : MonoBehaviour
         }
     }
 
-    // ------------------------------------------------------------
-    // Easing functions
-    // ------------------------------------------------------------
+    // =========================================================
+    // EASING
+    // =========================================================
 
     private static float EaseOutCubic(float t)
     {
@@ -590,9 +580,9 @@ public class VampireTeleportEffect : MonoBehaviour
         return c3 * t * t * t - c1 * t * t;
     }
 
-    // ------------------------------------------------------------
-    // History
-    // ------------------------------------------------------------
+    // =========================================================
+    // POSITION HISTORY
+    // =========================================================
 
     private void RecordState()
     {
@@ -602,9 +592,7 @@ public class VampireTeleportEffect : MonoBehaviour
         history.Add(
             new CarSnapshot(
                 Time.time,
-                playerCar.transform.position
-            )
-        );
+                playerCar.transform.position));
     }
 
     private void TrimHistory()
@@ -635,23 +623,20 @@ public class VampireTeleportEffect : MonoBehaviour
 
             if (next.time >= targetTime)
             {
-                float diff = next.time - previous.time;
+                float difference = next.time - previous.time;
 
-                if (diff <= 0.0001f)
+                if (difference <= 0.0001f)
                     return previous;
 
                 float t = Mathf.Clamp01(
-                    (targetTime - previous.time) / diff
-                );
+                    (targetTime - previous.time) / difference);
 
                 return new CarSnapshot(
                     targetTime,
                     Vector3.Lerp(
                         previous.position,
                         next.position,
-                        t
-                    )
-                );
+                        t));
             }
 
             previous = next;
@@ -660,9 +645,9 @@ public class VampireTeleportEffect : MonoBehaviour
         return history[history.Count - 1];
     }
 
-    // ------------------------------------------------------------
-    // Ground and physics helpers
-    // ------------------------------------------------------------
+    // =========================================================
+    // GROUND AND PHYSICS
+    // =========================================================
 
     private void SnapCarToGround()
     {
@@ -674,32 +659,30 @@ public class VampireTeleportEffect : MonoBehaviour
             Vector3.up * groundRayStartHeight;
 
         if (!Physics.Raycast(
-            origin,
-            Vector3.down,
-            out RaycastHit hit,
-            groundRayStartHeight + groundRayDistance,
-            groundLayer,
-            QueryTriggerInteraction.Ignore))
+                origin,
+                Vector3.down,
+                out RaycastHit hit,
+                groundRayStartHeight + groundRayDistance,
+                groundLayer,
+                QueryTriggerInteraction.Ignore))
         {
             Debug.LogWarning(
-                "VampireTeleportEffect: Ground not found. " +
-                "Check Ground Layer and ray distance.",
-                this
-            );
-
+                "VampireTeleportEffect: Ground not found. Check Ground Layer.",
+                this);
             return;
         }
 
-        Vector3 pos = playerCar.transform.position;
+        Vector3 position = playerCar.transform.position;
 
-        pos.y = hit.point.y +
+        position.y =
+            hit.point.y +
             GetPivotToBottomDistance() +
             groundClearance;
 
         if (carRigidbody != null)
-            carRigidbody.position = pos;
+            carRigidbody.position = position;
 
-        playerCar.transform.position = pos;
+        playerCar.transform.position = position;
 
         Physics.SyncTransforms();
     }
@@ -722,8 +705,7 @@ public class VampireTeleportEffect : MonoBehaviour
 
         return Mathf.Max(
             0f,
-            playerCar.transform.position.y - lowest
-        );
+            playerCar.transform.position.y - lowest);
     }
 
     private void FreezeCar()
@@ -763,6 +745,20 @@ public class VampireTeleportEffect : MonoBehaviour
         carFrozen = false;
     }
 
+    // =========================================================
+    // RESTORE CONTROLS AND VISUALS
+    // =========================================================
+
+    private void RestorePlayerControl()
+    {
+        if (playerCar == null)
+            return;
+
+        // This effect must not leave the car undrivable.
+        // Restore the expected gameplay control state explicitly.
+        playerCar.canControl = true;
+    }
+
     private void ResetVisualRotation()
     {
         if (visualRoot != null)
@@ -778,12 +774,52 @@ public class VampireTeleportEffect : MonoBehaviour
         visualRoot.localRotation = originalVisualRotation;
     }
 
-    // ------------------------------------------------------------
-    // Deactivation and cleanup
-    // ------------------------------------------------------------
+    // =========================================================
+    // FINISH AFTER EXACTLY TWO TELEPORTS
+    // =========================================================
+
+    private void FinishEffect()
+    {
+        effectActive = false;
+        isTeleporting = false;
+        isGrowing = false;
+
+        TimeUntilNextTeleport = 0f;
+
+        UnfreezeCar();
+        ResetVisual();
+
+        if (playerCar != null)
+        {
+            RestorePlayerControl();
+
+            // Make sure the Rigidbody is left in its normal state.
+            if (carRigidbody != null)
+            {
+                carRigidbody.WakeUp();
+            }
+        }
+
+        StopAndDestroyAudio();
+
+        history.Clear();
+
+        teleportLoopRoutine = null;
+        growRoutine = null;
+
+        Debug.Log(
+            "VampireTeleportEffect finished. Two teleports completed; controls restored.",
+            this);
+    }
+
+    // =========================================================
+    // DEACTIVATION AND CLEANUP
+    // =========================================================
 
     private void OnDisable()
     {
+        bool wasActive = effectActive;
+
         effectActive = false;
         isTeleporting = false;
         isGrowing = false;
@@ -797,12 +833,17 @@ public class VampireTeleportEffect : MonoBehaviour
         ResetVisual();
         StopAndDestroyAudio();
 
-        if (playerCar != null)
-            playerCar.canControl = originalCanControl;
+        if (wasActive && playerCar != null)
+            RestorePlayerControl();
+
+        history.Clear();
+        TimeUntilNextTeleport = 0f;
     }
 
     public void DeactivateVampireEffect()
     {
+        bool wasActive = effectActive;
+
         effectActive = false;
         isTeleporting = false;
         isGrowing = false;
@@ -816,8 +857,8 @@ public class VampireTeleportEffect : MonoBehaviour
         ResetVisual();
         StopAndDestroyAudio();
 
-        if (playerCar != null)
-            playerCar.canControl = originalCanControl;
+        if (wasActive && playerCar != null)
+            RestorePlayerControl();
 
         history.Clear();
         TimeUntilNextTeleport = 0f;
@@ -825,6 +866,7 @@ public class VampireTeleportEffect : MonoBehaviour
 
     private void OnDestroy()
     {
+        UnfreezeCar();
         StopAndDestroyAudio();
     }
 }
